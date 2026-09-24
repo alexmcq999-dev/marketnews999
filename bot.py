@@ -423,7 +423,8 @@ def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
             if r.status_code in (400, 404) and "model" in r.text.lower():
                 last = f"{model}: {r.status_code} {r.text[:150]}"
                 break  # пробуем следующую модель
-            r.raise_for_status()
+            if r.status_code >= 400:
+                raise RuntimeError(f"{model}: HTTP {r.status_code} {r.text[:300]}")
             content = r.json()["choices"][0]["message"]["content"]
             m = re.search(r"\{.*\}", content, re.S)
             if not m:
@@ -468,7 +469,10 @@ def cluster_context(c: dict) -> dict:
 
 
 def ai_enrich(chosen: list[dict]) -> dict | None:
-    if not chosen or not llm_config():
+    if not chosen:
+        return None
+    if not llm_config():
+        print("[LLM] не настроен: нет GITHUB_TOKEN/LLM_API_KEY", file=sys.stderr)
         return None
     with ThreadPoolExecutor(max_workers=6) as pool:
         ctx = list(pool.map(cluster_context, chosen))
@@ -514,6 +518,9 @@ def ai_enrich(chosen: list[dict]) -> dict | None:
 
 
 # ---------------------------------------------------------------- запасной вариант: машинный перевод
+_TR_ERR_SHOWN = False
+
+
 def translate(text: str) -> str:
     if not text:
         return ""
@@ -523,7 +530,11 @@ def translate(text: str) -> str:
                          headers={"User-Agent": UA}, timeout=10)
         r.raise_for_status()
         return "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).strip()
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        global _TR_ERR_SHOWN
+        if not _TR_ERR_SHOWN:
+            print(f"[translate] ошибка: {type(e).__name__} {str(e)[:200]}", file=sys.stderr)
+            _TR_ERR_SHOWN = True
         return ""
 
 
