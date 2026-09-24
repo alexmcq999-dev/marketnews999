@@ -43,6 +43,8 @@ MIN_KW = 4.0      # минимум «рыночности» по ключевы�
 NON_MARKET_THEMES = {"🏛 Политика США"}  # сами по себе не двигают рынок
 MAX_PER_THEME = 3
 
+LAST: dict = {}  # структурированные данные для мини-приложения
+
 STOPWORDS = set("""a an the and or of to in on for at by with from as is are was were be been it its this that
 after over into amid says said say will would could new us u.s. vs than up down about more most not no
 """.split())
@@ -335,6 +337,9 @@ def markets() -> list[str]:
     print("Рынки: " + ", ".join(f"{k}←{v[1]}" for k, v in out.items())
           + (" | ошибки: " + "; ".join(log) if log else ""), file=sys.stderr)
 
+    LAST["markets"] = [
+        {"name": name, "price": out[name][0][0], "chg": out[name][0][1], "dec": dec, "src": out[name][1]}
+        for name, _, _, _, dec in TICKERS if name in out]
     lines = []
     for name, _, _, _, dec in TICKERS:
         if name not in out:
@@ -359,12 +364,18 @@ def econ_calendar(now: datetime) -> list[str]:
     start = now.astimezone(MSK)
     end = start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1, hours=6)  # до 06:00 след. дня
     lines = []
+    week = []
     for ev in events:
-        if ev.get("impact") != "High" or ev.get("country") not in CALENDAR_COUNTRIES:
+        if ev.get("impact") not in ("High", "Medium") or ev.get("country") not in CALENDAR_COUNTRIES:
             continue
         try:
             t = datetime.fromisoformat(ev["date"]).astimezone(MSK)
         except Exception:  # noqa: BLE001
+            continue
+        week.append({"ts": t.isoformat(), "country": ev.get("country"), "title": ev.get("title", ""),
+                     "impact": ev.get("impact"), "forecast": ev.get("forecast") or "",
+                     "previous": ev.get("previous") or "", "actual": ev.get("actual") or ""})
+        if ev.get("impact") != "High":
             continue
         if not (start - timedelta(minutes=30) <= t <= end):
             continue
@@ -375,6 +386,7 @@ def econ_calendar(now: datetime) -> list[str]:
             extra.append(f"пред. {ev['previous']}")
         tail = f" <i>({', '.join(extra)})</i>" if extra else ""
         lines.append((t, f"🕐 {t:%H:%M} <b>{ev['country']}</b> {html.escape(ev['title'])}{tail}"))
+    LAST["calendar"] = sorted(week, key=lambda e: e["ts"])
     return [l for _, l in sorted(lines)]
 
 
@@ -697,7 +709,9 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
     if ai:
         rows = [fmt_item(n, c, it) for n, (c, it) in enumerate(ai["items"], 1)]
     else:
-        tr = translate_items(chosen)
+        tr = LAST.get("translations")
+        if tr is None:
+            tr = LAST["translations"] = translate_items(chosen)
         rows = [fmt_item(n + 1, c, tr.get(n)) for n, c in enumerate(chosen)]
     parts.append("<b>🔥 Главные события</b>\n\n" + ("\n\n".join(rows) if rows else "Значимых событий не найдено."))
     if cal:
@@ -705,6 +719,79 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
     parts.append(f"<i>Источники: {ok_sources}/{total_sources} доступны. 🏛 — официальный первоисточник, "
                  "✅ — история подтверждена несколькими независимыми изданиями. Не является инвест-рекомендацией.</i>")
     return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------- данные для мини-приложения
+def news_export(chosen, ai, tr) -> list[dict]:
+    pairs = ai["items"] if ai else [(c, (tr or {}).get(n) or {}) for n, c in enumerate(chosen)]
+    out = []
+    for c, it in pairs:
+        it = it or {}
+        l = c["lead"]
+        theme = c["themes"][0] if c["themes"] else ""
+        out.append({
+            "title": it.get("title_ru") or l["title"],
+            "title_en": l["title"],
+            "summary": it.get("summary_ru", ""),
+            "why": it.get("why", ""),
+            "watch": it.get("watch", ""),
+            "assets": it.get("assets", ""),
+            "bias": it.get("bias", ""),
+            "emoji": theme.split(" ")[0] if theme else "•",
+            "themes": [t.split(" ", 1)[1] for t in c["themes"][:3]],
+            "official": c["official"],
+            "outlets": len(c["outlets"]),
+            "trust": re.sub(r"<[^>]+>", "", trust_badge(c)),
+            "ts": c["ts"].isoformat(),
+            "links": [{"outlet": i["outlet"], "url": i["link"]} for i in _uniq_by_outlet(c["items"])[:5]],
+        })
+    return out
+
+
+def previous_news() -> dict:
+    """В почасовом режиме новости берём из последней опубликованной версии приложения."""
+    url = (os.getenv("WEBAPP_URL") or "").rstrip("/")
+    if not url:
+        return {}
+    try:
+        r = requests.get(url + "/data/app.json", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT,
+                         params={"t": int(time.time())})
+        r.raise_for_status()
+        d = r.json()
+        return {k: d.get(k) for k in ("news", "mood", "news_updated", "news_since")}
+    except Exception as e:  # noqa: BLE001
+        print(f"[app] не удалось взять прошлые новости: {e}", file=sys.stderr)
+        return {}
+
+
+def export_site(out_dir: str, now: datetime, payload: dict) -> None:
+    import shutil
+    src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
+    if os.path.isdir(src):
+        shutil.copytree(src, out_dir, dirs_exist_ok=True)
+    os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
+    data = {"updated": now.isoformat(), **payload}
+    with open(os.path.join(out_dir, "data", "app.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, default=str)
+    print(f"[app] данные записаны: {len(data.get('news') or [])} новостей, "
+          f"{len(data.get('markets') or [])} котировок", file=sys.stderr)
+
+
+def webapp_markup() -> dict | None:
+    url = (os.getenv("WEBAPP_URL") or "").strip()
+    if not url:
+        return None
+    return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "web_app": {"url": url}}]]}
+
+
+def setup_menu_button() -> None:
+    url = (os.getenv("WEBAPP_URL") or "").strip()
+    if not url:
+        return
+    try:
+        tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Рынки", "web_app": {"url": url}})
+    except Exception as e:  # noqa: BLE001
+        print(f"[app] кнопка меню не установлена: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------- Telegram
@@ -735,17 +822,20 @@ def send(text: str) -> None:
     chat_ids = [c.strip() for c in (os.getenv("TELEGRAM_CHAT_ID") or "").split(",") if c.strip()]
     if not chat_ids:
         raise SystemExit("ОШИБКА: секрет TELEGRAM_CHAT_ID не задан (Settings → Secrets and variables → Actions)")
+    markup = webapp_markup()
     for cid in chat_ids:
-        for chunk in split_message(text):
+        chunks = split_message(text)
+        for n, chunk in enumerate(chunks):
+            extra = {"reply_markup": markup} if markup and n == len(chunks) - 1 else {}
             try:
                 tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
-                   link_preview_options={"is_disabled": True})
+                   link_preview_options={"is_disabled": True}, **extra)
             except RuntimeError as e:
                 if "parse" not in str(e).lower():
                     raise
                 print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
                 plain = html.unescape(re.sub(r"<[^>]+>", "", chunk))
-                tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True})
+                tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True}, **extra)
             time.sleep(0.5)
 
 
@@ -777,8 +867,11 @@ def window_start(now: datetime) -> datetime:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="напечатать дайджест, ничего не отправлять")
     ap.add_argument("--get-chat-id", action="store_true")
+    ap.add_argument("--mode", choices=["digest", "data"], default="digest",
+                    help="digest — новости + рассылка; data — только котировки/индексы для приложения")
+    ap.add_argument("--export", metavar="DIR", help="собрать мини-приложение с данными в папку DIR")
     args = ap.parse_args()
 
     if args.get_chat_id:
@@ -786,6 +879,18 @@ def main() -> None:
         return
 
     now = datetime.now(timezone.utc)
+    sent_lines, sent_ctx = sentiment_block()
+    mkts = markets()
+    cal = econ_calendar(now)
+    from sentiment import LAST_SENTIMENT
+
+    if args.mode == "data":
+        payload = {"markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT, "calendar": LAST.get("calendar", []),
+                   **previous_news()}
+        if args.export:
+            export_site(args.export, now, payload)
+        return
+
     since = window_start(now)
     news, report = collect(since)
     print("Статус источников:\n" + "\n".join(report), file=sys.stderr)
@@ -796,14 +901,21 @@ def main() -> None:
     clusters = cluster(news)
     limit = int(os.getenv("MAX_ITEMS") or 8)
     chosen = select(clusters, limit)
-    sent_lines, sent_ctx = sentiment_block()
     ai = ai_enrich(chosen, sent_ctx)
 
-    text = build_message(now, since, chosen, ai, markets(), econ_calendar(now), ok_sources, len(FEEDS), sent_lines)
+    text = build_message(now, since, chosen, ai, mkts, cal, ok_sources, len(FEEDS), sent_lines)
+
+    if args.export:
+        export_site(args.export, now, {
+            "markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT, "calendar": LAST.get("calendar", []),
+            "news": news_export(chosen, ai, LAST.get("translations")), "mood": (ai or {}).get("mood", ""),
+            "news_updated": now.isoformat(), "news_since": since.isoformat()})
+
     if args.dry_run:
         print(text)
     else:
         send(text)
+        setup_menu_button()
         print(f"Отправлено: {len(ai['items']) if ai else len(chosen)} событий", file=sys.stderr)
 
 

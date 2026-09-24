@@ -3,21 +3,32 @@ name: Market digest
 on:
   schedule:
     # GitHub cron — в UTC и может запаздывать на 5–20 минут.
-    - cron: "45 4 * * *"    # ≈ 07:45–08:05 МСК
-    - cron: "45 12 * * *"   # ≈ 15:45–16:05 МСК
-  workflow_dispatch: {}      # кнопка ручного запуска во вкладке Actions
+    - cron: "45 4 * * *"    # ≈ 08:00 МСК — дайджест в Telegram + обновление приложения
+    - cron: "45 12 * * *"   # ≈ 16:00 МСК — дайджест в Telegram + обновление приложения
+    - cron: "15 * * * *"    # каждый час — только котировки/индексы для приложения
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "digest — рассылка в Telegram + приложение; data — только данные приложения"
+        type: choice
+        options: [digest, data]
+        default: digest
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: digest
   cancel-in-progress: false
 
 jobs:
-  send:
+  run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    environment:
+      name: github-pages
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -25,11 +36,34 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Build and send digest
+
+      - name: Choose mode
+        id: mode
+        run: |
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "WEBAPP_URL=https://${owner}.github.io/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_ENV"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "15 * * * *" ]; then
+            echo "mode=data" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=digest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (and send digest)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID || '6542171685' }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
-        run: python bot.py
+        run: python bot.py --mode ${{ steps.mode.outputs.mode }} --export site
+
+      # Публикация мини-приложения. Если GitHub Pages ещё не включён — дайджест всё равно уходит.
+      - uses: actions/configure-pages@v5
+        continue-on-error: true
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
+        continue-on-error: true

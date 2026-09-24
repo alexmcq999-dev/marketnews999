@@ -11,6 +11,8 @@ import requests
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 T = 20
 
+LAST_SENTIMENT: dict = {"fng": {}, "rsi": []}
+
 RATING_RU = {"extreme fear": "крайний страх", "fear": "страх", "neutral": "нейтрально",
              "greed": "жадность", "extreme greed": "крайняя жадность"}
 
@@ -159,6 +161,7 @@ def sentiment_block() -> tuple[list[str], str]:
             f = fn()
             rating = RATING_RU.get(f["rating"], f["rating"])
             delta = f["value"] - f["week"]
+            LAST_SENTIMENT["fng"]["stocks" if "Акции" in title else "crypto"] = {**f, "rating_ru": rating}
             lines.append(f"{_face(f['value'])} Fear &amp; Greed — {title}: <b>{f['value']}</b> {rating} "
                          f"<i>(вчера {f['prev']}, неделю назад {f['week']}, {delta:+d})</i>")
             ctx.append(f"Fear&Greed {title}: {f['value']} ({rating}), неделю назад {f['week']}")
@@ -179,6 +182,7 @@ def sentiment_block() -> tuple[list[str], str]:
         if val is None:
             continue
         rsi_lines.append(f"{html.escape(name)}: <b>{val:.0f}</b> {rsi_label(val)}")
+        LAST_SENTIMENT["rsi"].append({"name": name, "value": round(val, 1), "label": rsi_label(val)[2:]})
         ctx.append(f"RSI14 {name}: {val:.0f}")
     if rsi_lines:
         lines.append("<b>RSI(14), дневной</b> <i>(&gt;70 перекуплен, &lt;30 перепродан)</i>\n" + "\n".join(rsi_lines))

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Market Pulse</title>
+  <meta name="description" content="Рынки, настроения, новости и графики — мини-приложение Market News Bot">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M6 21l6-6 5 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Market Pulse</h1>
+      <div class="updated" id="updated">Загрузка…</div>
+    </div>
+    <button class="icon-btn" id="refresh" aria-label="Обновить данные" title="Обновить">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <section id="tab-overview" class="tab active" aria-label="Обзор"></section>
+    <section id="tab-news" class="tab" aria-label="Новости"></section>
+    <section id="tab-charts" class="tab" aria-label="Графики">
+      <div class="chips" id="chart-assets" role="tablist" aria-label="Актив"></div>
+      <div class="chart-controls">
+        <div class="segmented" id="chart-interval" role="radiogroup" aria-label="Таймфрейм"></div>
+        <label class="toggle"><input type="checkbox" id="chart-rsi" checked> RSI</label>
+      </div>
+      <div class="chart-box"><div id="tv-chart"></div></div>
+      <p class="hint">Графики TradingView в реальном времени. Индексы показаны через CFD-котировки (близки к индексу).</p>
+    </section>
+    <section id="tab-calendar" class="tab" aria-label="Календарь"></section>
+  </main>
+
+  <nav class="bottom" role="tablist" aria-label="Разделы">
+    <button class="nav-btn active" data-tab="overview" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <span>Обзор</span></button>
+    <button class="nav-btn" data-tab="news" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11v16H6a1 1 0 0 1-1-1zM16 8h3v10a2 2 0 0 1-2 2M8 8h5M8 12h5M8 16h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Новости</span></button>
+    <button class="nav-btn" data-tab="charts" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M5 15l4-5 4 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Графики</span></button>
+    <button class="nav-btn" data-tab="calendar" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v14H5zM5 10h14M9 3v5M15 3v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Календарь</span></button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
