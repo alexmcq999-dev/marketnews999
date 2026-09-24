@@ -105,7 +105,10 @@
     } catch (e) {
       $("#updated-text").textContent = "Нет связи с сервером данных";
       $(".live-dot").classList.add("stale");
-      if (!state.data) $("#tab-overview").innerHTML = `<div class="glass card empty">Данные ещё не опубликованы.<br>Запусти workflow в GitHub Actions и открой приложение снова.</div>`;
+      if (!state.data) {
+        $("#tab-overview").innerHTML = `<div class="glass card empty">Данные ещё не опубликованы.<br>Запусти workflow в GitHub Actions и открой приложение снова.</div><div class="section-title">Торговые сессии</div><div id="sessions"></div>`;
+        renderSessions();
+      }
     } finally {
       btn.classList.remove("spin");
     }
@@ -128,6 +131,8 @@
     if (d.mood) {
       h += `<div class="mood glass"><div class="label"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 8.5-2 5-5 2 2-5z" fill="currentColor"/></svg>Общий фон${d.news_updated ? " · " + fmtTime(d.news_updated, !isToday(d.news_updated)) : ""}</div><p>${esc(d.mood)}</p></div>`;
     }
+
+    h += `<div class="section-title">Торговые сессии</div><div id="sessions"></div>`;
 
     if ((d.markets || []).length) {
       h += `<div class="section-title">Рынки</div><div class="quotes">`;
@@ -167,6 +172,7 @@
     }
 
     $("#tab-overview").innerHTML = h || `<div class="glass card empty">Нет данных</div>`;
+    renderSessions();
     document.querySelectorAll(".quote[data-asset]").forEach((b) =>
       b.addEventListener("click", () => {
         const a = b.dataset.asset;
@@ -360,6 +366,12 @@
     tg.onEvent("themeChanged", () => { applyTheme(); state.chartKey = ""; if (state.tab === "charts") renderChart(); });
   }
   applyTheme();
+  function renderSessions() {
+    try { window.MarketSessions && window.MarketSessions.render(document.getElementById("sessions")); }
+    catch (e) { const el = document.getElementById("sessions"); if (el) el.innerHTML = ""; }
+  }
+
   load(false);
   setInterval(() => load(false), 5 * 60 * 1000);
+  setInterval(() => { if (state.tab === "overview") renderSessions(); }, 30 * 1000);
 })();

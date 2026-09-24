@@ -36,6 +36,11 @@
   --warn: #ffd60a;
   --orange: #ff9f0a;
   --neutral: #8e8e93;
+  --c-asia: #64d2ff;
+  --c-ru: #ff9f0a;
+  --c-eu: #7d7aff;
+  --c-us: #0a84ff;
+  --c-crypto: #bf5af2;
 
   --r-xl: 28px;
   --r-lg: 22px;
@@ -76,6 +81,11 @@
     --down: #d70015;
     --warn: #b25000;
     --orange: #c93400;
+    --c-asia: #0e8fb3;
+    --c-ru: #d96a00;
+    --c-eu: #5856d6;
+    --c-us: #007aff;
+    --c-crypto: #a33bd6;
   }
 }
 :root[data-theme="light"] {
@@ -104,6 +114,11 @@
   --down: #d70015;
   --warn: #b25000;
   --orange: #c93400;
+  --c-asia: #0e8fb3;
+  --c-ru: #d96a00;
+  --c-eu: #5856d6;
+  --c-us: #007aff;
+  --c-crypto: #a33bd6;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -367,6 +382,58 @@ main { padding: 4px 16px 0; }
 .ev.next .title::after { content: "скоро"; margin-left: 8px; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 99px; vertical-align: 1px; }
 
 .empty { color: var(--text-2); text-align: center; padding: 34px 16px; }
+
+/* ---------------------------------------------------------------- торговые сессии */
+.sess-now { padding: 18px; border-radius: var(--r-xl); overflow: hidden; }
+.sess-now::after { background: radial-gradient(120% 90% at 100% 0%, var(--sess-glow, transparent), transparent 60%), radial-gradient(120% 70% at 12% -10%, var(--spec), transparent 55%); }
+.sess-now.tone-peak { --sess-glow: color-mix(in srgb, var(--up) 35%, transparent); }
+.sess-now.tone-high { --sess-glow: color-mix(in srgb, var(--accent) 35%, transparent); }
+.sess-now.tone-mid { --sess-glow: color-mix(in srgb, var(--c-asia) 30%, transparent); }
+.sess-now.tone-quiet { --sess-glow: color-mix(in srgb, var(--neutral) 25%, transparent); }
+.sess-kicker { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.sess-kicker .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--up); animation: pulse 2.4s ease-out infinite; box-shadow: 0 0 0 0 color-mix(in srgb, var(--up) 60%, transparent); }
+.tone-quiet .sess-kicker .pulse { background: var(--neutral); animation: none; }
+.sess-title { font: 700 26px/1.15 var(--font-display); letter-spacing: -0.025em; margin: 6px 0 6px; }
+.sess-now p { margin: 0; color: color-mix(in srgb, var(--text) 85%, transparent); text-wrap: pretty; }
+.sess-next { display: inline-flex; margin-top: 12px; padding: 6px 12px; border-radius: 14px; background: var(--glass-strong); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.sess-card { margin-top: 12px; padding: 14px 14px 12px; }
+.s-grid { --label: 116px; --gap: 10px; position: relative; display: grid; gap: 8px; }
+.s-row { display: grid; grid-template-columns: var(--label) 1fr; gap: var(--gap); align-items: center; min-height: 40px; }
+.s-name { display: flex; flex-direction: column; min-width: 0; }
+.s-name b { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-st { font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.s-st.open { color: var(--up); font-weight: 600; }
+.s-st.ext, .s-st.break { color: var(--orange); font-weight: 600; }
+.s-track { position: relative; height: 12px; border-radius: 99px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.seg { position: absolute; top: 0; bottom: 0; border-radius: 99px; opacity: .5; }
+.seg.main { background: var(--c); }
+.seg.ext { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 70%, transparent) 0 3px, transparent 3px 6px); opacity: .7; top: 2px; bottom: 2px; }
+.seg.live { opacity: 1; box-shadow: 0 0 12px -1px var(--c); }
+.seg.asia { --c: var(--c-asia); }
+.seg.ru { --c: var(--c-ru); }
+.seg.eu { --c: var(--c-eu); }
+.seg.us { --c: var(--c-us); }
+.seg.crypto { --c: var(--c-crypto); background: linear-gradient(90deg, var(--c-crypto), var(--c-eu), var(--c-crypto)); opacity: .55; box-shadow: none; }
+.s-axis { display: grid; grid-template-columns: var(--label) 1fr; gap: var(--gap); }
+.s-ticks { grid-column: 2; position: relative; height: 14px; font-size: 10.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.s-ticks span { position: absolute; transform: translateX(-50%); }
+.s-ticks span:first-child { transform: none; }
+.s-ticks span:last-child { transform: translateX(-100%); }
+.s-nowline {
+  position: absolute; top: -4px; bottom: 16px; width: 2px; border-radius: 2px; pointer-events: none;
+  left: calc(var(--label) + var(--gap) + (100% - var(--label) - var(--gap)) * var(--nowf) - 1px);
+  background: var(--text); box-shadow: 0 0 8px color-mix(in srgb, var(--text) 50%, transparent);
+}
+.s-nowline span {
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10.5px; font-weight: 700;
+  padding: 1px 6px; border-radius: 99px; background: var(--text); color: var(--base); font-variant-numeric: tabular-nums;
+}
+.s-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--text-2); }
+.lg { display: inline-block; width: 12px; height: 8px; border-radius: 99px; margin-right: 6px; vertical-align: 1px; }
+.lg.asia { background: var(--c-asia); } .lg.ru { background: var(--c-ru); } .lg.eu { background: var(--c-eu); } .lg.us { background: var(--c-us); }
+.lg.ext { background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, transparent 2px 4px); }
+@media (max-width: 360px) { .s-grid { --label: 100px; } }
 
 /* ---------------------------------------------------------------- плавающий таббар */
 .tabbar {
