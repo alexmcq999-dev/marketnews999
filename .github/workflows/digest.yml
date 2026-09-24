@@ -1,0 +1,32 @@
+name: Market digest
+
+on:
+  schedule:
+    # GitHub cron — в UTC и может запаздывать на 5–20 минут.
+    - cron: "45 4 * * *"    # ≈ 07:45–08:05 МСК
+    - cron: "45 12 * * *"   # ≈ 15:45–16:05 МСК
+  workflow_dispatch: {}      # кнопка ручного запуска во вкладке Actions
+
+concurrency:
+  group: digest
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Build and send digest
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+        run: python bot.py
