@@ -9,11 +9,12 @@
 Переменные окружения:
   TELEGRAM_BOT_TOKEN   токен бота (обязательно)
   TELEGRAM_CHAT_ID     один или несколько chat ID через запятую (обязательно для отправки)
-  LLM_API_KEY          опционально: ключ OpenAI-совместимого API для ИИ-сводки на русском
+  GITHUB_TOKEN         в GitHub Actions: бесплатные GitHub Models для перевода и пересказа на русском
+  LLM_API_KEY          опционально: свой ключ OpenAI-совместимого API (приоритетнее GitHub Models)
   LLM_BASE_URL         опционально, по умолчанию https://openrouter.ai/api/v1
-  LLM_MODEL            опционально, по умолчанию openai/gpt-4o-mini
+  LLM_MODEL            опционально (GitHub Models: openai/gpt-4.1-mini)
   LOOKBACK_HOURS       опционально: принудительное окно в часах (иначе авто по слоту 08:00/16:00)
-  MAX_ITEMS            опционально: сколько новостей в дайджесте (по умолчанию 10)
+  MAX_ITEMS            опционально: сколько новостей в дайджесте (по умолчанию 8)
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML,
 HTTP_TIMEOUT = 20
 MIN_SCORE = 6.0
 MIN_KW = 4.0      # минимум «рыночности» по ключевым словам
+NON_MARKET_THEMES = {"🏛 Политика США"}  # сами по себе не двигают рынок
 MAX_PER_THEME = 3
 
 STOPWORDS = set("""a an the and or of to in on for at by with from as is are was were be been it its this that
@@ -192,6 +194,8 @@ def select(clusters: list[dict], limit: int) -> list[dict]:
     for c in clusters:
         if c["score"] < MIN_SCORE or not c["themes"] or max(i["kw_score"] for i in c["items"]) < MIN_KW:
             continue
+        if not any(t not in NON_MARKET_THEMES for t in c["themes"]):
+            continue  # чистая политика без связи с рынками
         main = c["themes"][0]
         if per_theme.get(main, 0) >= MAX_PER_THEME:
             continue
@@ -216,19 +220,77 @@ def trust_badge(c: dict) -> str:
 
 
 # ---------------------------------------------------------------- рынки
-YAHOO = [("S&P 500", "^GSPC", 0), ("Nasdaq", "^IXIC", 0), ("VIX", "^VIX", 2), ("DXY", "DX-Y.NYB", 2),
-         ("US10Y", "^TNX", 2), ("Gold", "GC=F", 0), ("Brent", "BZ=F", 2), ("BTC", "BTC-USD", 0), ("ETH", "ETH-USD", 0)]
+# (название, Yahoo, CNBC, Stooq, знаков после запятой)
+TICKERS = [
+    ("S&P 500", "^GSPC", ".SPX", "^spx", 0),
+    ("Nasdaq", "^IXIC", ".IXIC", "^ndq", 0),
+    ("VIX", "^VIX", ".VIX", None, 2),
+    ("DXY", "DX-Y.NYB", ".DXY", "dx.f", 2),
+    ("US10Y", "^TNX", "US10Y", "10usy.b", 2),
+    ("Gold", "GC=F", "@GC.1", "xauusd", 0),
+    ("Brent", "BZ=F", "@LCO.1", "cb.f", 2),
+    ("BTC", "BTC-USD", None, None, 0),
+    ("ETH", "ETH-USD", None, None, 0),
+]
+
+
+def _num(x):
+    if x is None:
+        return None
+    if isinstance(x, (int, float)):
+        return float(x)
+    x = str(x).replace(",", "").replace("%", "").replace("+", "").strip()
+    try:
+        return float(x)
+    except ValueError:
+        return None
 
 
 def yahoo_quote(symbol: str):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(symbol)}?range=5d&interval=1d"
+    last_err = None
+    for host in ("query1", "query2"):
+        try:
+            url = f"https://{host}.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(symbol)}?range=5d&interval=1d"
+            r = requests.get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+            if r.status_code == 429:
+                last_err = "429"
+                time.sleep(1.5)
+                continue
+            r.raise_for_status()
+            res = r.json()["chart"]["result"][0]
+            price = res["meta"]["regularMarketPrice"]
+            closes = [x for x in res["indicators"]["quote"][0]["close"] if x is not None]
+            prev = closes[-2] if len(closes) >= 2 else res["meta"].get("chartPreviousClose")
+            return price, (price / prev - 1) * 100 if prev else None
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{type(e).__name__}"
+    raise RuntimeError(f"yahoo {last_err}")
+
+
+def cnbc_quotes(symbols: list[str]) -> dict:
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols="
+           + "|".join(symbols) + "&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
     r = requests.get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
     r.raise_for_status()
-    res = r.json()["chart"]["result"][0]
-    price = res["meta"]["regularMarketPrice"]
-    closes = [x for x in res["indicators"]["quote"][0]["close"] if x is not None]
-    prev = closes[-2] if len(closes) >= 2 else res["meta"].get("chartPreviousClose")
-    return price, (price / prev - 1) * 100 if prev else None
+    rows = r.json()["FormattedQuoteResult"]["FormattedQuote"]
+    if isinstance(rows, dict):
+        rows = [rows]
+    out = {}
+    for q in rows:
+        price, chg = _num(q.get("last")), _num(q.get("change_pct"))
+        if price is not None:
+            out[q.get("symbol")] = (price, chg)
+    return out
+
+
+def stooq_quote(symbol: str):
+    r = requests.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+    r.raise_for_status()
+    rows = [l.split(",") for l in r.text.strip().splitlines()[1:] if l.count(",") >= 4]
+    closes = [_num(x[4]) for x in rows if _num(x[4])]
+    if len(closes) < 2:
+        raise RuntimeError("stooq: нет данных")
+    return closes[-1], (closes[-1] / closes[-2] - 1) * 100
 
 
 def coingecko() -> dict:
@@ -242,30 +304,42 @@ def coingecko() -> dict:
 
 
 def markets() -> list[str]:
-    out = {}
-
-    def one(row):
-        name, sym, dec = row
+    out, log = {}, []
+    for name, ysym, _, _, _ in TICKERS:  # последовательно, чтобы не ловить 429
         try:
-            return name, dec, yahoo_quote(sym)
-        except Exception:  # noqa: BLE001
-            return name, dec, None
-
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for name, dec, q in pool.map(one, YAHOO):
-            if q:
-                out[name] = (dec, q)
+            out[name] = (yahoo_quote(ysym), "yahoo")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"{name}: {e}")
+        time.sleep(0.4)
+    missing = [t for t in TICKERS if t[0] not in out and t[2]]
+    if missing:
+        try:
+            got = cnbc_quotes([t[2] for t in missing])
+            for name, _, csym, _, _ in missing:
+                if csym in got:
+                    out[name] = (got[csym], "cnbc")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"cnbc: {type(e).__name__} {e}"[:120])
+    for name, _, _, ssym, _ in TICKERS:
+        if name not in out and ssym:
+            try:
+                out[name] = (stooq_quote(ssym), "stooq")
+            except Exception as e:  # noqa: BLE001
+                log.append(f"stooq {name}: {type(e).__name__}")
     if "BTC" not in out or "ETH" not in out:
         try:
             for k, v in coingecko().items():
-                out.setdefault(k, (0, v))
-        except Exception:  # noqa: BLE001
-            pass
+                out.setdefault(k, (v, "coingecko"))
+        except Exception as e:  # noqa: BLE001
+            log.append(f"coingecko: {type(e).__name__}")
+    print("Рынки: " + ", ".join(f"{k}←{v[1]}" for k, v in out.items())
+          + (" | ошибки: " + "; ".join(log) if log else ""), file=sys.stderr)
+
     lines = []
-    for name, _, dec in YAHOO:
+    for name, _, _, _, dec in TICKERS:
         if name not in out:
             continue
-        dec, (price, chg) = out[name]
+        (price, chg), _src = out[name]
         arrow = "🟢" if (chg or 0) > 0.05 else "🔴" if (chg or 0) < -0.05 else "⚪"
         p = f"{price:,.{dec}f}".replace(",", " ")
         c = f"{chg:+.2f}%" if chg is not None else ""
@@ -304,49 +378,164 @@ def econ_calendar(now: datetime) -> list[str]:
     return [l for _, l in sorted(lines)]
 
 
-# ---------------------------------------------------------------- ИИ-сводка (опционально)
-def llm_enrich(chosen: list[dict], candidates: list[dict]) -> dict | None:
+# ---------------------------------------------------------------- ИИ: перевод и развёрнутый пересказ
+AI_SYSTEM = (
+    "Ты — редактор финансовых новостей для русскоязычного трейдера акций и крипты. Пишешь по-русски, ясно и "
+    "по делу, без воды и кликбейта. Факты (что произошло, кто, цифры, даты) бери ТОЛЬКО из переданного текста — "
+    "ничего не выдумывай и не добавляй цифр, которых нет в тексте. Для блока «почему важно» можешь использовать "
+    "общеизвестный рыночный контекст (как ставки влияют на акции, нефть на инфляцию и т.п.), но без новых фактов. "
+    "Названия компаний, тикеры и имена оставляй узнаваемыми. Отвечай строго JSON."
+)
+BATCH = 4
+
+
+def llm_config():
+    """OpenAI-совместимый API: свой ключ (LLM_API_KEY) или бесплатные GitHub Models (GITHUB_TOKEN)."""
     key = os.getenv("LLM_API_KEY")
-    if not key:
-        return None
-    base = (os.getenv("LLM_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
-    model = os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"
-    pool = candidates[:30]
-    lines = []
-    for idx, c in enumerate(pool):
-        l = c["lead"]
-        lines.append(json.dumps({"id": idx, "title": l["title"], "summary": l["summary"][:300],
-                                 "sources": c["outlets"], "official": c["official"]}, ensure_ascii=False))
-    prompt = (
-        "Ты — аналитик рынков. Ниже новости за последние часы из проверенных источников (JSON по строкам).\n"
-        "Выбери до 8 событий, которые реально могут сдвинуть ценовые диапазоны акций США и/или крипты. "
-        "Отбрось то, что не влияет на рынки. Используй ТОЛЬКО факты из текста — не додумывай цифры и детали.\n"
-        "Верни строго JSON: {\"mood\": \"1-2 предложения об общем фоне\", \"items\": [{\"id\": <id>, "
-        "\"title_ru\": \"суть по-русски, до 15 слов\", \"why\": \"почему важно для рынка, 1 предложение\", "
-        "\"assets\": \"какие активы затронет, кратко\", \"bias\": \"bullish|bearish|mixed\"}]}. "
-        "Порядок — по важности.\n\n" + "\n".join(lines)
-    )
+    if key:
+        base = (os.getenv("LLM_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+        return base + "/chat/completions", key, [os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"], {}
+    gh = os.getenv("GITHUB_TOKEN")
+    if gh:
+        models = [m for m in [os.getenv("LLM_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini"] if m]
+        return ("https://models.github.ai/inference/chat/completions", gh, models,
+                {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+    return None
+
+
+def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
+    cfg = llm_config()
+    if not cfg:
+        raise RuntimeError("LLM не настроен")
+    url, key, models, extra = cfg
+    last = ""
+    for model in dict.fromkeys(models):
+        for attempt in range(3):
+            r = requests.post(url, timeout=120,
+                              headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", **extra},
+                              json={"model": model, "temperature": 0.2, "max_tokens": max_tokens,
+                                    "messages": [{"role": "system", "content": AI_SYSTEM},
+                                                 {"role": "user", "content": prompt}]})
+            if r.status_code == 429:
+                last = f"{model}: 429"
+                time.sleep(15 * (attempt + 1))
+                continue
+            if r.status_code in (400, 404) and "model" in r.text.lower():
+                last = f"{model}: {r.status_code} {r.text[:150]}"
+                break  # пробуем следующую модель
+            r.raise_for_status()
+            content = r.json()["choices"][0]["message"]["content"]
+            m = re.search(r"\{.*\}", content, re.S)
+            if not m:
+                raise RuntimeError(f"LLM вернул не JSON: {content[:200]}")
+            return json.loads(m.group(0))
+    raise RuntimeError(f"LLM недоступен: {last}")
+
+
+def page_description(url: str) -> str:
+    """og:description статьи — ещё 1–2 предложения фактуры (Google News-ссылки пропускаем)."""
+    if not url or "news.google.com" in url:
+        return ""
     try:
-        r = requests.post(f"{base}/chat/completions", timeout=90,
-                          headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                          json={"model": model, "temperature": 0.2,
-                                "response_format": {"type": "json_object"},
-                                "messages": [{"role": "user", "content": prompt}]})
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
-        content = re.sub(r"^```(?:json)?|```$", "", content.strip()).strip()
-        data = json.loads(content)
-        picked = []
-        for it in data.get("items", [])[:8]:
-            i = int(it["id"])
-            if 0 <= i < len(pool):
-                picked.append((pool[i], it))
+        r = requests.get(url, headers={"User-Agent": UA}, timeout=8)
+        head = r.text[:200_000]
+    except Exception:  # noqa: BLE001
+        return ""
+    for pat in (r'<meta[^>]+(?:property|name)=["\'](?:og:description|description)["\'][^>]*content=["\']([^"\']{40,})',
+                r'<meta[^>]+content=["\']([^"\']{40,})["\'][^>]*(?:property|name)=["\'](?:og:description|description)'):
+        m = re.search(pat, head, re.I)
+        if m:
+            return html.unescape(m.group(1)).strip()[:500]
+    return ""
+
+
+def cluster_context(c: dict) -> dict:
+    heads, facts = [], []
+    for i in _uniq_by_outlet(c["items"])[:5]:
+        heads.append(f"{i['outlet']}: {i['title']}")
+        sm = i["summary"]
+        if sm and sm.lower()[:60] != i["title"].lower()[:60] and "news.google.com" not in i["link"]:
+            facts.append(sm)
+    extra = 0
+    for i in _uniq_by_outlet(c["items"]):
+        if extra >= 2:
+            break
+        d = page_description(i["link"])
+        if d and all(d[:60] not in f for f in facts):
+            facts.append(d)
+            extra += 1
+    return {"headlines": heads, "details": facts[:5], "official": c["official"]}
+
+
+def ai_enrich(chosen: list[dict]) -> dict | None:
+    if not chosen or not llm_config():
+        return None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        ctx = list(pool.map(cluster_context, chosen))
+    results: dict[int, dict] = {}
+    try:
+        for b in range(0, len(chosen), BATCH):
+            payload = [dict(id=i, **ctx[i]) for i in range(b, min(b + BATCH, len(chosen)))]
+            prompt = (
+                "Ниже новости (JSON). Для КАЖДОЙ верни объект в массиве items:\n"
+                "- id — как во входе;\n"
+                "- title_ru — заголовок по-русски, до 14 слов, суть события;\n"
+                "- summary_ru — 2–4 предложения: что произошло, ключевые детали и цифры из текста, "
+                "кто участники, что ожидается дальше (если это есть в тексте);\n"
+                "- why — 1–2 предложения: как это может повлиять на акции/облигации/доллар/нефть/крипту;\n"
+                "- assets — затронутые активы кратко (например: «Nasdaq, NVDA, полупроводники»);\n"
+                "- bias — bullish | bearish | mixed (для рынка акций/крипты в целом);\n"
+                "- skip — true, если новость на самом деле не про рынки/экономику/геополитику.\n"
+                "Формат ответа: {\"items\": [...]}\n\n" + json.dumps(payload, ensure_ascii=False)
+            )
+            data = llm_json(prompt)
+            for it in data.get("items", []):
+                try:
+                    results[int(it["id"])] = it
+                except (KeyError, ValueError, TypeError):
+                    pass
+        picked = [(chosen[i], results[i]) for i in range(len(chosen))
+                  if i in results and results[i].get("title_ru") and not results[i].get("skip")]
         if not picked:
             return None
-        return {"mood": data.get("mood", ""), "items": picked}
+        mood = ""
+        try:
+            titles = "\n".join(f"- {it['title_ru']}" for _, it in picked)
+            mood = llm_json("Главные события дня:\n" + titles + "\n\nОпиши общий фон для рынков акций и крипты "
+                            "в 2 предложениях (риск-он / риск-офф, что главное двигает рынок). "
+                            "Формат: {\"mood\": \"...\"}", max_tokens=400).get("mood", "")
+        except Exception as e:  # noqa: BLE001
+            print(f"[LLM] mood: {e}", file=sys.stderr)
+        print(f"[LLM] обработано {len(picked)}/{len(chosen)} новостей", file=sys.stderr)
+        return {"mood": mood, "items": picked}
     except Exception as e:  # noqa: BLE001
-        print(f"[LLM] ошибка, использую правила: {e}", file=sys.stderr)
+        print(f"[LLM] ошибка, перехожу на простой перевод: {e}", file=sys.stderr)
         return None
+
+
+# ---------------------------------------------------------------- запасной вариант: машинный перевод
+def translate(text: str) -> str:
+    if not text:
+        return ""
+    try:
+        r = requests.get("https://translate.googleapis.com/translate_a/single",
+                         params={"client": "gtx", "sl": "en", "tl": "ru", "dt": "t", "q": text[:1500]},
+                         headers={"User-Agent": UA}, timeout=10)
+        r.raise_for_status()
+        return "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def translate_items(chosen: list[dict]) -> dict:
+    out = {}
+    for n, c in enumerate(chosen):
+        l = c["lead"]
+        sm = next((i["summary"] for i in c["items"]
+                   if i["summary"] and "news.google.com" not in i["link"]
+                   and i["summary"].lower()[:60] != i["title"].lower()[:60]), "")
+        out[n] = {"title_ru": translate(l["title"]), "summary_ru": translate(sm[:500]) if sm else ""}
+    return out
 
 
 # ---------------------------------------------------------------- форматирование
@@ -355,31 +544,31 @@ BIAS = {"bullish": "🟢 позитив", "bearish": "🔴 негатив", "mix
 
 def fmt_item(n: int, c: dict, ai: dict | None) -> str:
     l = c["lead"]
+    ai = ai or {}
     theme = c["themes"][0] if c["themes"] else ""
     emoji = theme.split(" ")[0] if theme else "•"
-    t_msk = c["ts"].astimezone(MSK).strftime("%H:%M")
+    ts = c["ts"].astimezone(MSK)
+    t_msk = ts.strftime("%H:%M") if ts.date() == datetime.now(MSK).date() else ts.strftime("%d.%m %H:%M")
     links = " · ".join(
         f'<a href="{html.escape(i["link"], quote=True)}">{html.escape(i["outlet"])}</a>'
         for i in _uniq_by_outlet(c["items"])[:4])
-    if ai:
-        head = f"{n}. {emoji} <b>{html.escape(ai.get('title_ru', l['title']))}</b>"
-        body = [f"<i>{html.escape(l['title'])}</i>"]
-        if ai.get("why"):
-            body.append(f"💡 {html.escape(ai['why'])}")
-        meta = []
-        if ai.get("assets"):
-            meta.append(f"🎯 {html.escape(ai['assets'])}")
-        if ai.get("bias") in BIAS:
-            meta.append(BIAS[ai["bias"]])
-        if meta:
-            body.append(" | ".join(meta))
-    else:
-        head = f"{n}. {emoji} <b>{html.escape(l['title'])}</b>"
-        body = []
-        if theme:
-            body.append(f"<i>{html.escape(', '.join(c['themes'][:3]))}</i>")
-    body.append(f"{trust_badge(c)} · {t_msk} МСК · {links}")
-    return head + "\n" + "\n".join(body)
+    title = ai.get("title_ru") or l["title"]
+    lines = [f"{n}. {emoji} <b>{html.escape(title)}</b>"]
+    if ai.get("summary_ru"):
+        lines.append(html.escape(ai["summary_ru"]))
+    if ai.get("why"):
+        lines.append(f"💡 <b>Почему важно:</b> {html.escape(ai['why'])}")
+    meta = []
+    if ai.get("assets"):
+        meta.append(f"🎯 {html.escape(ai['assets'])}")
+    if ai.get("bias") in BIAS:
+        meta.append(BIAS[ai["bias"]])
+    if meta:
+        lines.append(" · ".join(meta))
+    elif not ai.get("summary_ru") and theme:
+        lines.append(f"<i>{html.escape(', '.join(c['themes'][:3]))}</i>")
+    lines.append(f"{trust_badge(c)} · {t_msk} МСК · {links}")
+    return "\n".join(lines)
 
 
 def _uniq_by_outlet(items):
@@ -396,13 +585,14 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
     parts = [f"<b>{slot} дайджест рынков</b> — {now.astimezone(MSK):%d.%m.%Y, %H:%M} МСК",
              f"<i>Новости с {since.astimezone(MSK):%d.%m %H:%M} МСК</i>"]
     if ai and ai.get("mood"):
-        parts.append(f"🧭 {html.escape(ai['mood'])}")
+        parts.append(f"🧭 <b>Общий фон:</b> {html.escape(ai['mood'])}")
     if mkts:
         parts.append("<b>📈 Рынки</b>\n" + "\n".join(mkts))
     if ai:
         rows = [fmt_item(n, c, it) for n, (c, it) in enumerate(ai["items"], 1)]
     else:
-        rows = [fmt_item(n, c, None) for n, c in enumerate(chosen, 1)]
+        tr = translate_items(chosen)
+        rows = [fmt_item(n + 1, c, tr.get(n)) for n, c in enumerate(chosen)]
     parts.append("<b>🔥 Главные события</b>\n\n" + ("\n\n".join(rows) if rows else "Значимых событий не найдено."))
     if cal:
         parts.append("<b>📅 Календарь (high impact)</b>\n" + "\n".join(cal))
@@ -413,11 +603,13 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
 
 # ---------------------------------------------------------------- Telegram
 def tg(method: str, **payload):
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        raise SystemExit("ОШИБКА: секрет TELEGRAM_BOT_TOKEN не задан (Settings → Secrets and variables → Actions)")
     r = requests.post(f"https://api.telegram.org/bot{token}/{method}", json=payload, timeout=HTTP_TIMEOUT)
     data = r.json()
     if not data.get("ok"):
-        raise RuntimeError(f"Telegram {method}: {data}")
+        raise RuntimeError(f"Telegram {method}: {data.get('error_code')} {data.get('description')}")
     return data["result"]
 
 
@@ -434,13 +626,20 @@ def split_message(text: str, limit: int = 4000) -> list[str]:
 
 
 def send(text: str) -> None:
-    chat_ids = [c.strip() for c in os.environ.get("TELEGRAM_CHAT_ID", "").split(",") if c.strip()]
+    chat_ids = [c.strip() for c in (os.getenv("TELEGRAM_CHAT_ID") or "").split(",") if c.strip()]
     if not chat_ids:
-        raise SystemExit("TELEGRAM_CHAT_ID не задан. Запусти: python bot.py --get-chat-id")
+        raise SystemExit("ОШИБКА: секрет TELEGRAM_CHAT_ID не задан (Settings → Secrets and variables → Actions)")
     for cid in chat_ids:
         for chunk in split_message(text):
-            tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
-               link_preview_options={"is_disabled": True})
+            try:
+                tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
+                   link_preview_options={"is_disabled": True})
+            except RuntimeError as e:
+                if "parse" not in str(e).lower():
+                    raise
+                print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
+                plain = html.unescape(re.sub(r"<[^>]+>", "", chunk))
+                tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True})
             time.sleep(0.5)
 
 
@@ -489,10 +688,9 @@ def main() -> None:
     for n in news:
         score_item(n)
     clusters = cluster(news)
-    limit = int(os.getenv("MAX_ITEMS") or 10)
+    limit = int(os.getenv("MAX_ITEMS") or 8)
     chosen = select(clusters, limit)
-    candidates = [c for c in clusters if c["score"] >= MIN_SCORE - 2 and c["themes"]]
-    ai = llm_enrich(chosen, candidates) if candidates else None
+    ai = ai_enrich(chosen)
 
     text = build_message(now, since, chosen, ai, markets(), econ_calendar(now), ok_sources, len(FEEDS))
     if args.dry_run:
