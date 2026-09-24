@@ -413,11 +413,13 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
 
 # ---------------------------------------------------------------- Telegram
 def tg(method: str, **payload):
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        raise SystemExit("ОШИБКА: секрет TELEGRAM_BOT_TOKEN не задан (Settings → Secrets and variables → Actions)")
     r = requests.post(f"https://api.telegram.org/bot{token}/{method}", json=payload, timeout=HTTP_TIMEOUT)
     data = r.json()
     if not data.get("ok"):
-        raise RuntimeError(f"Telegram {method}: {data}")
+        raise RuntimeError(f"Telegram {method}: {data.get('error_code')} {data.get('description')}")
     return data["result"]
 
 
@@ -434,13 +436,20 @@ def split_message(text: str, limit: int = 4000) -> list[str]:
 
 
 def send(text: str) -> None:
-    chat_ids = [c.strip() for c in os.environ.get("TELEGRAM_CHAT_ID", "").split(",") if c.strip()]
+    chat_ids = [c.strip() for c in (os.getenv("TELEGRAM_CHAT_ID") or "").split(",") if c.strip()]
     if not chat_ids:
-        raise SystemExit("TELEGRAM_CHAT_ID не задан. Запусти: python bot.py --get-chat-id")
+        raise SystemExit("ОШИБКА: секрет TELEGRAM_CHAT_ID не задан (Settings → Secrets and variables → Actions)")
     for cid in chat_ids:
         for chunk in split_message(text):
-            tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
-               link_preview_options={"is_disabled": True})
+            try:
+                tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
+                   link_preview_options={"is_disabled": True})
+            except RuntimeError as e:
+                if "parse" not in str(e).lower():
+                    raise
+                print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
+                plain = html.unescape(re.sub(r"<[^>]+>", "", chunk))
+                tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True})
             time.sleep(0.5)
 
 
