@@ -39,6 +39,7 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML,
 HTTP_TIMEOUT = 20
 MIN_SCORE = 6.0
 MIN_KW = 4.0      # минимум «рыночности» по ключевым словам
+NON_MARKET_THEMES = {"🏛 Политика США"}  # сами по себе не двигают рынок
 MAX_PER_THEME = 3
 
 STOPWORDS = set("""a an the and or of to in on for at by with from as is are was were be been it its this that
@@ -192,6 +193,8 @@ def select(clusters: list[dict], limit: int) -> list[dict]:
     for c in clusters:
         if c["score"] < MIN_SCORE or not c["themes"] or max(i["kw_score"] for i in c["items"]) < MIN_KW:
             continue
+        if not any(t not in NON_MARKET_THEMES for t in c["themes"]):
+            continue  # чистая политика без связи с рынками
         main = c["themes"][0]
         if per_theme.get(main, 0) >= MAX_PER_THEME:
             continue
@@ -216,19 +219,77 @@ def trust_badge(c: dict) -> str:
 
 
 # ---------------------------------------------------------------- рынки
-YAHOO = [("S&P 500", "^GSPC", 0), ("Nasdaq", "^IXIC", 0), ("VIX", "^VIX", 2), ("DXY", "DX-Y.NYB", 2),
-         ("US10Y", "^TNX", 2), ("Gold", "GC=F", 0), ("Brent", "BZ=F", 2), ("BTC", "BTC-USD", 0), ("ETH", "ETH-USD", 0)]
+# (название, Yahoo, CNBC, Stooq, знаков после запятой)
+TICKERS = [
+    ("S&P 500", "^GSPC", ".SPX", "^spx", 0),
+    ("Nasdaq", "^IXIC", ".IXIC", "^ndq", 0),
+    ("VIX", "^VIX", ".VIX", None, 2),
+    ("DXY", "DX-Y.NYB", ".DXY", "dx.f", 2),
+    ("US10Y", "^TNX", "US10Y", "10usy.b", 2),
+    ("Gold", "GC=F", "@GC.1", "xauusd", 0),
+    ("Brent", "BZ=F", "@LCO.1", "cb.f", 2),
+    ("BTC", "BTC-USD", None, None, 0),
+    ("ETH", "ETH-USD", None, None, 0),
+]
+
+
+def _num(x):
+    if x is None:
+        return None
+    if isinstance(x, (int, float)):
+        return float(x)
+    x = str(x).replace(",", "").replace("%", "").replace("+", "").strip()
+    try:
+        return float(x)
+    except ValueError:
+        return None
 
 
 def yahoo_quote(symbol: str):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(symbol)}?range=5d&interval=1d"
+    last_err = None
+    for host in ("query1", "query2"):
+        try:
+            url = f"https://{host}.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(symbol)}?range=5d&interval=1d"
+            r = requests.get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+            if r.status_code == 429:
+                last_err = "429"
+                time.sleep(1.5)
+                continue
+            r.raise_for_status()
+            res = r.json()["chart"]["result"][0]
+            price = res["meta"]["regularMarketPrice"]
+            closes = [x for x in res["indicators"]["quote"][0]["close"] if x is not None]
+            prev = closes[-2] if len(closes) >= 2 else res["meta"].get("chartPreviousClose")
+            return price, (price / prev - 1) * 100 if prev else None
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{type(e).__name__}"
+    raise RuntimeError(f"yahoo {last_err}")
+
+
+def cnbc_quotes(symbols: list[str]) -> dict:
+    url = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols="
+           + "|".join(symbols) + "&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json")
     r = requests.get(url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
     r.raise_for_status()
-    res = r.json()["chart"]["result"][0]
-    price = res["meta"]["regularMarketPrice"]
-    closes = [x for x in res["indicators"]["quote"][0]["close"] if x is not None]
-    prev = closes[-2] if len(closes) >= 2 else res["meta"].get("chartPreviousClose")
-    return price, (price / prev - 1) * 100 if prev else None
+    rows = r.json()["FormattedQuoteResult"]["FormattedQuote"]
+    if isinstance(rows, dict):
+        rows = [rows]
+    out = {}
+    for q in rows:
+        price, chg = _num(q.get("last")), _num(q.get("change_pct"))
+        if price is not None:
+            out[q.get("symbol")] = (price, chg)
+    return out
+
+
+def stooq_quote(symbol: str):
+    r = requests.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+    r.raise_for_status()
+    rows = [l.split(",") for l in r.text.strip().splitlines()[1:] if l.count(",") >= 4]
+    closes = [_num(x[4]) for x in rows if _num(x[4])]
+    if len(closes) < 2:
+        raise RuntimeError("stooq: нет данных")
+    return closes[-1], (closes[-1] / closes[-2] - 1) * 100
 
 
 def coingecko() -> dict:
@@ -242,30 +303,42 @@ def coingecko() -> dict:
 
 
 def markets() -> list[str]:
-    out = {}
-
-    def one(row):
-        name, sym, dec = row
+    out, log = {}, []
+    for name, ysym, _, _, _ in TICKERS:  # последовательно, чтобы не ловить 429
         try:
-            return name, dec, yahoo_quote(sym)
-        except Exception:  # noqa: BLE001
-            return name, dec, None
-
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for name, dec, q in pool.map(one, YAHOO):
-            if q:
-                out[name] = (dec, q)
+            out[name] = (yahoo_quote(ysym), "yahoo")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"{name}: {e}")
+        time.sleep(0.4)
+    missing = [t for t in TICKERS if t[0] not in out and t[2]]
+    if missing:
+        try:
+            got = cnbc_quotes([t[2] for t in missing])
+            for name, _, csym, _, _ in missing:
+                if csym in got:
+                    out[name] = (got[csym], "cnbc")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"cnbc: {type(e).__name__} {e}"[:120])
+    for name, _, _, ssym, _ in TICKERS:
+        if name not in out and ssym:
+            try:
+                out[name] = (stooq_quote(ssym), "stooq")
+            except Exception as e:  # noqa: BLE001
+                log.append(f"stooq {name}: {type(e).__name__}")
     if "BTC" not in out or "ETH" not in out:
         try:
             for k, v in coingecko().items():
-                out.setdefault(k, (0, v))
-        except Exception:  # noqa: BLE001
-            pass
+                out.setdefault(k, (v, "coingecko"))
+        except Exception as e:  # noqa: BLE001
+            log.append(f"coingecko: {type(e).__name__}")
+    print("Рынки: " + ", ".join(f"{k}←{v[1]}" for k, v in out.items())
+          + (" | ошибки: " + "; ".join(log) if log else ""), file=sys.stderr)
+
     lines = []
-    for name, _, dec in YAHOO:
+    for name, _, _, _, dec in TICKERS:
         if name not in out:
             continue
-        dec, (price, chg) = out[name]
+        (price, chg), _src = out[name]
         arrow = "🟢" if (chg or 0) > 0.05 else "🔴" if (chg or 0) < -0.05 else "⚪"
         p = f"{price:,.{dec}f}".replace(",", " ")
         c = f"{chg:+.2f}%" if chg is not None else ""
@@ -357,7 +430,8 @@ def fmt_item(n: int, c: dict, ai: dict | None) -> str:
     l = c["lead"]
     theme = c["themes"][0] if c["themes"] else ""
     emoji = theme.split(" ")[0] if theme else "•"
-    t_msk = c["ts"].astimezone(MSK).strftime("%H:%M")
+    ts = c["ts"].astimezone(MSK)
+    t_msk = ts.strftime("%H:%M") if ts.date() == datetime.now(MSK).date() else ts.strftime("%d.%m %H:%M")
     links = " · ".join(
         f'<a href="{html.escape(i["link"], quote=True)}">{html.escape(i["outlet"])}</a>'
         for i in _uniq_by_outlet(c["items"])[:4])
