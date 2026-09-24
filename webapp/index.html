@@ -3,21 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#05070d">
   <title>Market Pulse</title>
   <meta name="description" content="Рынки, настроения, новости и графики — мини-приложение Market News Bot">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M6 21l6-6 5 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235ac8fa'/%3E%3Cstop offset='1' stop-color='%235e5ce6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M6 21l6-6 5 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <div>
-      <h1>Market Pulse</h1>
-      <div class="updated" id="updated">Загрузка…</div>
+  <!-- Живой фон: цветные пятна, которые «преломляет» стекло -->
+  <div class="ambient" aria-hidden="true">
+    <span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span><span class="orb o4"></span>
+  </div>
+
+  <header class="top" id="top">
+    <div class="top-inner">
+      <div class="titles">
+        <h1>Market Pulse</h1>
+        <div class="updated" id="updated"><span class="live-dot"></span><span id="updated-text">Загрузка…</span></div>
+      </div>
+      <button class="icon-btn glass" id="refresh" aria-label="Обновить данные" title="Обновить">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
-    <button class="icon-btn" id="refresh" aria-label="Обновить данные" title="Обновить">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
+    <div class="compact-title" aria-hidden="true">Market Pulse</div>
   </header>
 
   <main>
@@ -26,16 +35,21 @@
     <section id="tab-charts" class="tab" aria-label="Графики">
       <div class="chips" id="chart-assets" role="tablist" aria-label="Актив"></div>
       <div class="chart-controls">
-        <div class="segmented" id="chart-interval" role="radiogroup" aria-label="Таймфрейм"></div>
-        <label class="toggle"><input type="checkbox" id="chart-rsi" checked> RSI</label>
+        <div class="segmented glass" id="chart-interval" role="radiogroup" aria-label="Таймфрейм"></div>
+        <label class="switch" for="chart-rsi">
+          <input type="checkbox" id="chart-rsi" checked>
+          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+          <span>RSI</span>
+        </label>
       </div>
-      <div class="chart-box"><div id="tv-chart"></div></div>
-      <p class="hint">Графики TradingView в реальном времени. Индексы показаны через CFD-котировки (близки к индексу).</p>
+      <div class="chart-box glass"><div id="tv-chart"></div></div>
+      <p class="hint">Графики TradingView в реальном времени. S&amp;P 500 и Nasdaq — через CFD-котировки, они повторяют индекс.</p>
     </section>
     <section id="tab-calendar" class="tab" aria-label="Календарь"></section>
   </main>
 
-  <nav class="bottom" role="tablist" aria-label="Разделы">
+  <nav class="tabbar glass" role="tablist" aria-label="Разделы" id="tabbar">
+    <span class="lens" aria-hidden="true"></span>
     <button class="nav-btn active" data-tab="overview" role="tab" aria-selected="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       <span>Обзор</span></button>
