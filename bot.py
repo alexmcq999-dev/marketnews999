@@ -388,10 +388,43 @@ AI_SYSTEM = (
 BATCH = 3
 
 
-FREE_MODELS = ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-4-maverick:free"]
+FREE_PREFER = ["deepseek", "llama-3.3-70b", "llama-4", "qwen3", "qwen", "gemma-3", "mistral", "glm", "kimi", "nex", "ling"]
+
+
+def free_models(limit: int = 4) -> list[str]:
+    """Актуальные бесплатные модели OpenRouter (их список постоянно меняется)."""
+    try:
+        r = requests.get("https://openrouter.ai/api/v1/models", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+        r.raise_for_status()
+        models = r.json().get("data", [])
+    except Exception as e:  # noqa: BLE001
+        print(f"[LLM] не удалось получить список моделей: {e}", file=sys.stderr)
+        return []
+    free = []
+    for m in models:
+        pr = m.get("pricing") or {}
+        is_free = m.get("id", "").endswith(":free") or (str(pr.get("prompt")) in ("0", "0.0") and str(pr.get("completion")) in ("0", "0.0"))
+        if is_free and (m.get("context_length") or 0) >= 16000 and "openrouter/" not in m.get("id", ""):
+            free.append(m)
+
+    def rank(m):
+        mid = m["id"].lower()
+        pref = next((i for i, p in enumerate(FREE_PREFER) if p in mid), len(FREE_PREFER))
+        return (pref, -(m.get("context_length") or 0))
+    return [m["id"] for m in sorted(free, key=rank)[:limit]]
+
+
+_LLM_CFG = "unset"
 
 
 def llm_config():
+    global _LLM_CFG
+    if _LLM_CFG == "unset":
+        _LLM_CFG = _llm_config()
+    return _LLM_CFG
+
+
+def _llm_config():
     """OpenAI-совместимый API. По умолчанию OpenRouter: сначала бесплатные модели, затем gpt-4o-mini (если есть кредиты)."""
     key = (os.getenv("LLM_API_KEY") or "").strip()
     if not key:
@@ -400,7 +433,8 @@ def llm_config():
     if os.getenv("LLM_MODEL"):
         models = [m.strip() for m in os.environ["LLM_MODEL"].split(",") if m.strip()]
     elif "openrouter.ai" in base:
-        models = FREE_MODELS + ["openai/gpt-4o-mini"]
+        # сначала платная (если есть кредиты — быстро и качественно), при 402 — бесплатные
+        models = ["openai/gpt-4o-mini"] + free_models()
     else:
         models = ["gpt-4o-mini"]
     extra = {"HTTP-Referer": "https://github.com/market-news-bot", "X-Title": "Market News Bot"} if "openrouter.ai" in base else {}
@@ -408,6 +442,7 @@ def llm_config():
 
 
 _DEAD_MODELS: set[str] = set()
+_GOOD_MODEL: list[str] = []
 
 
 def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
@@ -415,8 +450,8 @@ def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
     if not cfg:
         raise RuntimeError("LLM не настроен")
     url, key, models, extra = cfg
-    last = ""
-    for model in dict.fromkeys(models):
+    errs: list[str] = []
+    for model in dict.fromkeys(_GOOD_MODEL + models):
         if model in _DEAD_MODELS:
             continue
         for attempt in range(2):
@@ -427,14 +462,14 @@ def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
                                         "messages": [{"role": "system", "content": AI_SYSTEM},
                                                      {"role": "user", "content": prompt}]})
             except requests.RequestException as e:
-                last = f"{model}: {type(e).__name__}"
+                errs.append(f"{model}: {type(e).__name__}")
                 continue
             if r.status_code == 429:
-                last = f"{model}: 429 {r.text[:120]}"
+                errs.append(f"{model}: 429 {r.text[:120]}")
                 time.sleep(8 * (attempt + 1))
                 continue
             if r.status_code >= 400:
-                last = f"{model}: HTTP {r.status_code} {r.text[:200]}"
+                errs.append(f"{model}: HTTP {r.status_code} {r.text[:160]}")
                 if r.status_code in (401, 403) and "openrouter" in url and "credit" not in r.text.lower():
                     raise RuntimeError(f"ключ LLM_API_KEY не принят: {r.text[:200]}")
                 _DEAD_MODELS.add(model)
@@ -443,20 +478,22 @@ def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
                 body = r.json()
                 content = body["choices"][0]["message"]["content"] or ""
             except Exception:  # noqa: BLE001
-                last = f"{model}: не-JSON ответ HTTP {r.status_code}: {r.text[:200]!r}"
+                errs.append(f"{model}: не-JSON ответ HTTP {r.status_code}: {r.text[:160]!r}")
                 break
             m = re.search(r"\{.*\}", content, re.S)
             if not m:
-                last = f"{model}: ответ без JSON: {content[:150]!r}"
+                errs.append(f"{model}: ответ без JSON: {content[:120]!r}")
                 break
             try:
                 data = json.loads(m.group(0))
             except json.JSONDecodeError:
-                last = f"{model}: битый JSON"
+                errs.append(f"{model}: битый JSON")
                 break
-            print(f"[LLM] модель: {model}", file=sys.stderr)
+            if model not in _GOOD_MODEL:
+                _GOOD_MODEL[:] = [model]
+                print(f"[LLM] модель: {model}", file=sys.stderr)
             return data
-    raise RuntimeError(f"LLM недоступен: {last}")
+    raise RuntimeError("LLM недоступен: " + " | ".join(errs[-6:]))
 
 
 def page_description(url: str) -> str:

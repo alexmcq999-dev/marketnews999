@@ -102,7 +102,12 @@ NOISE = [r"football", r"soccer", r"premier league", r"celebrity", r"recipe", r"o
          r"commentary", r"column", r"analysis:", r"breakingviews", r"explainer", r"editorial",
          # «oil», который не нефть
          r"edible oils?", r"palm oil", r"cooking oils?", r"vegetable oils?", r"olive oil", r"soy(bean)? oil",
-         r"essential oils?"]
+         r"essential oils?",
+         # локальные ЦБ/экономики, которые не двигают рынки США и крипту
+         r"zambia\w*", r"kenya\w*", r"ghana\w*", r"nigeria\w*", r"uganda\w*", r"malawi\w*", r"zimbabwe\w*",
+         r"sri lanka\w*", r"bangladesh\w*", r"pakistan\w*", r"morocc\w*", r"tunisia\w*",
+         r"peru\w*", r"colombia\w*", r"chile\w*", r"philippine\w*", r"thai\w*", r"vietnam\w*",
+         r"hungar\w*", r"romania\w*", r"serbia\w*", r"kazakh\w*", r"uzbek\w*", r"mongolia\w*"]
 
 # Экономический календарь: какие валюты интересны
 CALENDAR_COUNTRIES = {"USD", "EUR", "CNY", "GBP", "JPY", "ALL"}
