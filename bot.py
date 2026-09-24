@@ -32,6 +32,7 @@ from datetime import datetime, timedelta, timezone
 import feedparser
 import requests
 
+from sentiment import sentiment_block
 from sources import (CALENDAR_COUNTRIES, FEEDS, INTENSIFIERS, NOISE, THEMES, TIER_WEIGHT)
 
 MSK = timezone(timedelta(hours=3))
@@ -531,7 +532,7 @@ def cluster_context(c: dict) -> dict:
     return {"headlines": heads, "details": facts[:5], "official": c["official"]}
 
 
-def ai_enrich(chosen: list[dict]) -> dict | None:
+def ai_enrich(chosen: list[dict], market_ctx: str = "") -> dict | None:
     if not chosen:
         return None
     if not llm_config():
@@ -573,7 +574,9 @@ def ai_enrich(chosen: list[dict]) -> dict | None:
         mood = ""
         try:
             titles = "\n".join(f"- {it['title_ru']}" for _, it in picked)
-            mood = llm_json("Главные события дня:\n" + titles + "\n\nОпиши общий фон для рынков акций и крипты "
+            mood = llm_json("Главные события дня:\n" + titles
+                            + (f"\n\nИндикаторы рынка: {market_ctx}" if market_ctx else "")
+                            + "\n\nОпиши общий фон для рынков акций и крипты "
                             "в 2–3 предложениях: риск-он или риск-офф, какие 1–2 темы сейчас главные драйверы и что это значит для "
                             "акций США и крипты. "
                             "Формат: {\"mood\": \"...\"}", max_tokens=400).get("mood", "")
@@ -680,7 +683,8 @@ def _uniq_by_outlet(items):
     return out
 
 
-def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sources: int, total_sources: int) -> str:
+def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sources: int, total_sources: int,
+                  sentiment: list[str] | None = None) -> str:
     slot = "☀️ Утренний" if now.astimezone(MSK).hour < 12 else "🌆 Дневной"
     parts = [f"<b>{slot} дайджест рынков</b> — {now.astimezone(MSK):%d.%m.%Y, %H:%M} МСК",
              f"<i>Новости с {since.astimezone(MSK):%d.%m %H:%M} МСК</i>"]
@@ -688,6 +692,8 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
         parts.append(f"🧭 <b>Общий фон:</b> {html.escape(ai['mood'])}")
     if mkts:
         parts.append("<b>📈 Рынки</b>\n" + "\n".join(mkts))
+    if sentiment:
+        parts.append("<b>🌡 Настроения и перекупленность</b>\n" + "\n".join(sentiment))
     if ai:
         rows = [fmt_item(n, c, it) for n, (c, it) in enumerate(ai["items"], 1)]
     else:
@@ -790,9 +796,10 @@ def main() -> None:
     clusters = cluster(news)
     limit = int(os.getenv("MAX_ITEMS") or 8)
     chosen = select(clusters, limit)
-    ai = ai_enrich(chosen)
+    sent_lines, sent_ctx = sentiment_block()
+    ai = ai_enrich(chosen, sent_ctx)
 
-    text = build_message(now, since, chosen, ai, markets(), econ_calendar(now), ok_sources, len(FEEDS))
+    text = build_message(now, since, chosen, ai, markets(), econ_calendar(now), ok_sources, len(FEEDS), sent_lines)
     if args.dry_run:
         print(text)
     else:
