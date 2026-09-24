@@ -9,10 +9,9 @@
 Переменные окружения:
   TELEGRAM_BOT_TOKEN   токен бота (обязательно)
   TELEGRAM_CHAT_ID     один или несколько chat ID через запятую (обязательно для отправки)
-  GITHUB_TOKEN         в GitHub Actions: бесплатные GitHub Models для перевода и пересказа на русском
-  LLM_API_KEY          опционально: свой ключ OpenAI-совместимого API (приоритетнее GitHub Models)
+  LLM_API_KEY          ключ OpenRouter (или другого OpenAI-совместимого API) для перевода и пересказа
   LLM_BASE_URL         опционально, по умолчанию https://openrouter.ai/api/v1
-  LLM_MODEL            опционально (GitHub Models: openai/gpt-4.1-mini)
+  LLM_MODEL            опционально: модель или список через запятую (по умолчанию бесплатные Llama → gpt-4o-mini)
   LOOKBACK_HOURS       опционально: принудительное окно в часах (иначе авто по слоту 08:00/16:00)
   MAX_ITEMS            опционально: сколько новостей в дайджесте (по умолчанию 8)
 """
@@ -389,18 +388,26 @@ AI_SYSTEM = (
 BATCH = 4
 
 
+FREE_MODELS = ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-4-maverick:free"]
+
+
 def llm_config():
-    """OpenAI-совместимый API: свой ключ (LLM_API_KEY) или бесплатные GitHub Models (GITHUB_TOKEN)."""
-    key = os.getenv("LLM_API_KEY")
-    if key:
-        base = (os.getenv("LLM_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
-        return base + "/chat/completions", key, [os.getenv("LLM_MODEL") or "openai/gpt-4o-mini"], {}
-    gh = os.getenv("GITHUB_TOKEN")
-    if gh:
-        models = [m for m in [os.getenv("LLM_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini"] if m]
-        return ("https://models.github.ai/inference/chat/completions", gh, models,
-                {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-    return None
+    """OpenAI-совместимый API. По умолчанию OpenRouter: сначала бесплатные модели, затем gpt-4o-mini (если есть кредиты)."""
+    key = (os.getenv("LLM_API_KEY") or "").strip()
+    if not key:
+        return None
+    base = (os.getenv("LLM_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+    if os.getenv("LLM_MODEL"):
+        models = [m.strip() for m in os.environ["LLM_MODEL"].split(",") if m.strip()]
+    elif "openrouter.ai" in base:
+        models = FREE_MODELS + ["openai/gpt-4o-mini"]
+    else:
+        models = ["gpt-4o-mini"]
+    extra = {"HTTP-Referer": "https://github.com/market-news-bot", "X-Title": "Market News Bot"} if "openrouter.ai" in base else {}
+    return base + "/chat/completions", key, models, extra
+
+
+_DEAD_MODELS: set[str] = set()
 
 
 def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
@@ -410,26 +417,45 @@ def llm_json(prompt: str, max_tokens: int = 3000) -> dict:
     url, key, models, extra = cfg
     last = ""
     for model in dict.fromkeys(models):
-        for attempt in range(3):
-            r = requests.post(url, timeout=120,
-                              headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", **extra},
-                              json={"model": model, "temperature": 0.2, "max_tokens": max_tokens,
-                                    "messages": [{"role": "system", "content": AI_SYSTEM},
-                                                 {"role": "user", "content": prompt}]})
-            if r.status_code == 429:
-                last = f"{model}: 429"
-                time.sleep(15 * (attempt + 1))
+        if model in _DEAD_MODELS:
+            continue
+        for attempt in range(2):
+            try:
+                r = requests.post(url, timeout=120,
+                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", **extra},
+                                  json={"model": model, "temperature": 0.2, "max_tokens": max_tokens,
+                                        "messages": [{"role": "system", "content": AI_SYSTEM},
+                                                     {"role": "user", "content": prompt}]})
+            except requests.RequestException as e:
+                last = f"{model}: {type(e).__name__}"
                 continue
-            if r.status_code in (400, 404) and "model" in r.text.lower():
-                last = f"{model}: {r.status_code} {r.text[:150]}"
-                break  # пробуем следующую модель
+            if r.status_code == 429:
+                last = f"{model}: 429 {r.text[:120]}"
+                time.sleep(8 * (attempt + 1))
+                continue
             if r.status_code >= 400:
-                raise RuntimeError(f"{model}: HTTP {r.status_code} {r.text[:300]}")
-            content = r.json()["choices"][0]["message"]["content"]
+                last = f"{model}: HTTP {r.status_code} {r.text[:200]}"
+                if r.status_code in (401, 403) and "openrouter" in url and "credit" not in r.text.lower():
+                    raise RuntimeError(f"ключ LLM_API_KEY не принят: {r.text[:200]}")
+                _DEAD_MODELS.add(model)
+                break  # следующая модель
+            try:
+                body = r.json()
+                content = body["choices"][0]["message"]["content"] or ""
+            except Exception:  # noqa: BLE001
+                last = f"{model}: не-JSON ответ HTTP {r.status_code}: {r.text[:200]!r}"
+                break
             m = re.search(r"\{.*\}", content, re.S)
             if not m:
-                raise RuntimeError(f"LLM вернул не JSON: {content[:200]}")
-            return json.loads(m.group(0))
+                last = f"{model}: ответ без JSON: {content[:150]!r}"
+                break
+            try:
+                data = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                last = f"{model}: битый JSON"
+                break
+            print(f"[LLM] модель: {model}", file=sys.stderr)
+            return data
     raise RuntimeError(f"LLM недоступен: {last}")
 
 
@@ -472,7 +498,7 @@ def ai_enrich(chosen: list[dict]) -> dict | None:
     if not chosen:
         return None
     if not llm_config():
-        print("[LLM] не настроен: нет GITHUB_TOKEN/LLM_API_KEY", file=sys.stderr)
+        print("[LLM] не настроен: нет секрета LLM_API_KEY — использую машинный перевод", file=sys.stderr)
         return None
     with ThreadPoolExecutor(max_workers=6) as pool:
         ctx = list(pool.map(cluster_context, chosen))
@@ -518,24 +544,42 @@ def ai_enrich(chosen: list[dict]) -> dict | None:
 
 
 # ---------------------------------------------------------------- запасной вариант: машинный перевод
-_TR_ERR_SHOWN = False
+def _google_tr(text: str) -> str:
+    r = requests.get("https://translate.googleapis.com/translate_a/single",
+                     params={"client": "gtx", "sl": "en", "tl": "ru", "dt": "t", "q": text[:1500]},
+                     headers={"User-Agent": UA}, timeout=10)
+    r.raise_for_status()
+    return "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).strip()
+
+
+def _mymemory_tr(text: str) -> str:
+    r = requests.get("https://api.mymemory.translated.net/get", params={"q": text[:480], "langpair": "en|ru"},
+                     headers={"User-Agent": UA}, timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    t = (d.get("responseData") or {}).get("translatedText") or ""
+    if d.get("responseStatus") not in (200, "200") or "MYMEMORY WARNING" in t.upper():
+        raise RuntimeError(f"mymemory {d.get('responseStatus')}: {t[:100]}")
+    return html.unescape(t).strip()
+
+
+_TR_DEAD: set[str] = set()
 
 
 def translate(text: str) -> str:
     if not text:
         return ""
-    try:
-        r = requests.get("https://translate.googleapis.com/translate_a/single",
-                         params={"client": "gtx", "sl": "en", "tl": "ru", "dt": "t", "q": text[:1500]},
-                         headers={"User-Agent": UA}, timeout=10)
-        r.raise_for_status()
-        return "".join(seg[0] for seg in r.json()[0] if seg and seg[0]).strip()
-    except Exception as e:  # noqa: BLE001
-        global _TR_ERR_SHOWN
-        if not _TR_ERR_SHOWN:
-            print(f"[translate] ошибка: {type(e).__name__} {str(e)[:200]}", file=sys.stderr)
-            _TR_ERR_SHOWN = True
-        return ""
+    for name, fn in (("google", _google_tr), ("mymemory", _mymemory_tr)):
+        if name in _TR_DEAD:
+            continue
+        try:
+            out = fn(text)
+            if out:
+                return out
+        except Exception as e:  # noqa: BLE001
+            print(f"[translate] {name}: {type(e).__name__} {str(e)[:150]}", file=sys.stderr)
+            _TR_DEAD.add(name)  # после первой ошибки этот сервис больше не дёргаем
+    return ""
 
 
 def translate_items(chosen: list[dict]) -> dict:
