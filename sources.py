@@ -97,7 +97,12 @@ NOISE = [r"football", r"soccer", r"premier league", r"celebrity", r"recipe", r"o
          r"horoscope", r"quiz", r"podcast", r"obituary", r"dies at", r"fashion", r"netflix series",
          r"approval of application", r"enforcement actions? with", r"termination of enforcement",
          r"app store", r"how to", r"best \w+ to buy", r"deals? of the day", r"opinion", r"newsletter",
-         r"live:", r"watch:", r"video:", r"found dead"]
+         r"live:", r"watch:", r"video:", r"found dead",
+         # мнения и колонки — это не события
+         r"commentary", r"column", r"analysis:", r"breakingviews", r"explainer", r"editorial",
+         # «oil», который не нефть
+         r"edible oils?", r"palm oil", r"cooking oils?", r"vegetable oils?", r"olive oil", r"soy(bean)? oil",
+         r"essential oils?"]
 
 # Экономический календарь: какие валюты интересны
 CALENDAR_COUNTRIES = {"USD", "EUR", "CNY", "GBP", "JPY", "ALL"}
