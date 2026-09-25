@@ -773,6 +773,16 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
     data = {"updated": now.isoformat(), **payload}
     with open(os.path.join(out_dir, "data", "app.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, default=str)
+    # копия сигналов McQ Signals — запасной источник для вкладки «Сигналы»
+    sig_url = os.getenv("SIGNALS_URL") or \
+        "https://raw.githubusercontent.com/alexmcq999-dev/McQSignals/main/state/app_signals.json"
+    try:
+        r = requests.get(sig_url, headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT, params={"t": int(time.time())})
+        r.raise_for_status()
+        with open(os.path.join(out_dir, "data", "signals.json"), "w", encoding="utf-8") as f:
+            f.write(r.text)
+    except Exception as e:  # noqa: BLE001
+        print(f"[app] сигналы не скопированы: {e}", file=sys.stderr)
     print(f"[app] данные записаны: {len(data.get('news') or [])} новостей, "
           f"{len(data.get('markets') or [])} котировок", file=sys.stderr)
 

@@ -435,19 +435,70 @@ main { padding: 4px 16px 0; }
 .lg.ext { background: repeating-linear-gradient(135deg, var(--text-2) 0 2px, transparent 2px 4px); }
 @media (max-width: 360px) { .s-grid { --label: 100px; } }
 
+/* ---------------------------------------------------------------- сигналы */
+.test-banner {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); margin: 6px 0 4px;
+  background: color-mix(in srgb, var(--warn) 16%, transparent); font-size: 13.5px; font-weight: 550;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 35%, transparent);
+}
+.test-banner b { display: block; font-weight: 700; }
+.sig-head { padding: 16px 18px; border-radius: var(--r-xl); margin-top: 10px; }
+.sig-head .k { font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.sig-head .t { font: 700 22px/1.2 var(--font-display); letter-spacing: -0.02em; margin: 4px 0 2px; }
+.sig-head .s { font-size: 13px; color: var(--text-2); }
+.blackout { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--orange); }
+.stat-seg { margin: 14px 0 10px; max-width: 260px; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stat { padding: 11px 8px 10px; border-radius: 16px; text-align: center; }
+.stat .v { font: 700 19px/1.1 var(--font-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat .l { font-size: 11px; color: var(--text-2); margin-top: 3px; }
+.stat .v.up, .r.up { color: var(--up); }
+.stat .v.down, .r.down { color: var(--down); }
+.sig-card { padding: 15px 16px; border-radius: var(--r-xl); cursor: pointer; }
+.sig-card + .sig-card { margin-top: 12px; }
+.sig-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.side { font-size: 12px; font-weight: 750; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; }
+.side.LONG { color: var(--up); background: color-mix(in srgb, var(--up) 16%, transparent); }
+.side.SHORT { color: var(--down); background: color-mix(in srgb, var(--down) 16%, transparent); }
+.sig-sym { font: 700 19px var(--font-display); letter-spacing: -0.02em; }
+.badge { font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px; background: var(--glass-strong); color: var(--text-2); }
+.badge.contra { color: var(--c-crypto); background: color-mix(in srgb, var(--c-crypto) 16%, transparent); }
+.badge.tp { color: var(--up); background: color-mix(in srgb, var(--up) 14%, transparent); }
+.sig-r { margin-left: auto; text-align: right; }
+.sig-r .r { font: 700 20px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.sig-r small { display: block; font-size: 11px; color: var(--text-3); margin-top: 3px; }
+.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.lv { padding: 8px 8px 7px; border-radius: 12px; background: var(--glass-strong); min-width: 0; }
+.lv .l { font-size: 10.5px; font-weight: 650; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.lv .v { font: 650 13.5px var(--font-display); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv.sl .v { color: var(--down); }
+.lv.tp .v { color: var(--up); }
+.conf { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--text-2); }
+.conf .track { flex: 1; height: 6px; }
+.conf .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--c-crypto)); }
+.reasons { margin-top: 10px; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+.closed-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 11px 0; }
+.closed-row + .closed-row { box-shadow: inset 0 1px 0 var(--hair); }
+.closed-row .n { font-weight: 650; }
+.closed-row .n small { display: block; font-weight: 500; font-size: 11.5px; color: var(--text-3); }
+.closed-row .r { font: 700 15px var(--font-display); font-variant-numeric: tabular-nums; }
+.exp-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; font-size: 13.5px; }
+.exp-row + .exp-row { box-shadow: inset 0 1px 0 var(--hair); }
+.exp-row .f { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 /* ---------------------------------------------------------------- плавающий таббар */
 .tabbar {
   position: fixed; z-index: 30; left: 50%; transform: translateX(-50%);
   bottom: calc(var(--safe-b) + 12px);
-  width: min(420px, calc(100% - 28px)); height: var(--tabbar-h);
-  display: grid; grid-template-columns: repeat(4, 1fr); padding: 5px;
+  width: min(460px, calc(100% - 20px)); height: var(--tabbar-h);
+  display: grid; grid-template-columns: repeat(5, 1fr); padding: 5px;
   border-radius: 999px;
   --blur: 14px; /* у узких панелей большой радиус размытия Chromium иногда пропускает */
   background: color-mix(in srgb, var(--base) 48%, transparent);
 }
 .tabbar .lens {
   position: absolute; z-index: 1; top: 5px; bottom: 5px; left: 5px; border-radius: 999px;
-  width: calc((100% - 10px) / 4); transform: translateX(calc(100% * var(--i, 0)));
+  width: calc((100% - 10px) / 5); transform: translateX(calc(100% * var(--i, 0)));
   background: var(--glass-press);
   box-shadow: inset 0 1px 0 var(--inner), inset 0 -1px 1px rgba(255, 255, 255, .05), 0 4px 12px -4px var(--shadow);
   transition: transform .55s var(--spring);
@@ -455,7 +506,7 @@ main { padding: 4px 16px 0; }
 .nav-btn {
   position: relative; z-index: 2; border: 0; background: transparent; border-radius: 999px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  color: var(--text-2); font-size: 10.5px; font-weight: 600; cursor: pointer; transition: color .25s ease, transform .35s var(--spring);
+  color: var(--text-2); font-size: 10px; font-weight: 600; cursor: pointer; transition: color .25s ease, transform .35s var(--spring);
 }
 .nav-btn:active { transform: scale(.9); }
 .nav-btn svg { width: 24px; height: 24px; }
@@ -470,5 +521,7 @@ main { padding: 4px 16px 0; }
 }
 @media (max-width: 360px) {
   .quotes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .levels, .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-btn span { font-size: 9.5px; }
   .top h1 { font-size: 30px; }
 }

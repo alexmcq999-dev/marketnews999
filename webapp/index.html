@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#05070d">
   <title>Market Pulse</title>
-  <meta name="description" content="Рынки, настроения, новости и графики — мини-приложение Market News Bot">
+  <meta name="description" content="Рынки, сигналы, настроения, новости и графики — мини-приложение Market News Bot">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235ac8fa'/%3E%3Cstop offset='1' stop-color='%235e5ce6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M6 21l6-6 5 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css">
@@ -31,6 +31,7 @@
 
   <main>
     <section id="tab-overview" class="tab active" aria-label="Обзор"></section>
+    <section id="tab-signals" class="tab" aria-label="Сигналы"></section>
     <section id="tab-news" class="tab" aria-label="Новости"></section>
     <section id="tab-charts" class="tab" aria-label="Графики">
       <div class="chips" id="chart-assets" role="tablist" aria-label="Актив"></div>
@@ -53,6 +54,9 @@
     <button class="nav-btn active" data-tab="overview" role="tab" aria-selected="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       <span>Обзор</span></button>
+    <button class="nav-btn" data-tab="signals" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l3-7 4 14 3-7h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Сигналы</span></button>
     <button class="nav-btn" data-tab="news" role="tab" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11v16H6a1 1 0 0 1-1-1zM16 8h3v10a2 2 0 0 1-2 2M8 8h5M8 12h5M8 16h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Новости</span></button>

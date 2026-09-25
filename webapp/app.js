@@ -23,7 +23,15 @@
   const FLAGS = { USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CNY: "🇨🇳", ALL: "🌐" };
   const BIAS = { bullish: "позитив", bearish: "негатив", mixed: "неоднозначно" };
 
-  const state = { data: null, tab: "overview", newsFilter: "Все", asset: "BTC", interval: "240", rsi: true, chartKey: "" };
+  const state = { data: null, sig: null, sigPeriod: "d30", tab: "overview", newsFilter: "Все", asset: "BTC", interval: "240", rsi: true, chartKey: "" };
+
+  // Сигналы McQ Signals: свежие данные прямо из репозитория бота, запасной вариант — копия в data/
+  const SIGNALS_URLS = [
+    "https://raw.githubusercontent.com/alexmcq999-dev/McQSignals/main/state/app_signals.json",
+    "data/signals.json",
+  ];
+  const EXIT = { sl: "стоп", tp2: "TP2", be: "б/у после TP1", trail: "трейлинг", timeout: "по времени" };
+  const tvSymbol = (a) => TV[a] || `BINANCE:${String(a).toUpperCase()}USDT`;
 
   // ---------------------------------------------------------------- утилиты
   function esc(s) {
@@ -114,8 +122,22 @@
     }
   }
 
+  async function loadSignals() {
+    for (const u of SIGNALS_URLS) {
+      try {
+        const r = await fetch(`${u}?t=${Date.now()}`, { cache: "no-store" });
+        if (!r.ok) continue;
+        state.sig = await r.json();
+        renderSignals();
+        return;
+      } catch (e) { /* пробуем следующий источник */ }
+    }
+    if (!state.sig) renderSignals();
+  }
+
   function renderAll() {
     renderOverview();
+    renderSignals();
     renderNews();
     renderCalendar();
     renderChartControls();
@@ -178,6 +200,105 @@
         const a = b.dataset.asset;
         if (TV[a]) { state.asset = a; switchTab("charts"); }
       }));
+  }
+
+  // ---------------------------------------------------------------- сигналы
+  function fmtPrice(v) {
+    if (v == null || isNaN(v)) return "—";
+    const a = Math.abs(v);
+    const dec = a >= 1000 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 5 : 8;
+    return Number(v).toLocaleString("ru-RU", { maximumFractionDigits: dec });
+  }
+  function rCls(v) { return v > 0.001 ? "up" : v < -0.001 ? "down" : ""; }
+  function fmtR(v) { return v == null || isNaN(v) ? "—" : `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}R`; }
+
+  function renderSignals() {
+    const box = $("#tab-signals");
+    if (!box) return;
+    const d = state.sig;
+    if (!d) {
+      box.innerHTML = `<div class="glass card empty">Загружаю сигналы…<br><small>Если долго пусто — бот ещё не опубликовал данные.</small></div>`;
+      return;
+    }
+    const tf = d.timeframes || {};
+    let h = "";
+    if (d.test_mode) {
+      h += `<div class="test-banner"><span>🧪</span><div><b>Тестовый режим</b>Сигналы публикуются для проверки стратегии на живом рынке. Не используй их для реальной торговли.</div></div>`;
+    }
+    h += `<div class="sig-head glass"><div class="k">McQ Signals</div>
+      <div class="t">${esc((tf.entry || "").toUpperCase())} + фильтр ${esc((tf.confirm || "").toUpperCase())}</div>
+      <div class="s">${d.coins || "—"} монет с капой от $100M · ${esc(d.provider || "")} · обновлено ${ago(d.updated)}</div>
+      ${d.blackout ? `<div class="blackout">⏸ Пауза новых сигналов: ${esc(d.blackout.title)} в ${fmtTime(d.blackout.ts)}</div>` : ""}
+    </div>`;
+
+    // статистика
+    const P = [["d7", "7 дней"], ["d30", "30 дней"], ["all", "Всё время"]];
+    const idx = Math.max(0, P.findIndex(([k]) => k === state.sigPeriod));
+    const st = (d.stats || {})[state.sigPeriod] || {};
+    h += `<div class="segmented glass stat-seg" id="sig-period" style="--n:3;--i:${idx}"><span class="thumb-glass" aria-hidden="true"></span>${P.map(([k, l]) => `<button class="${k === state.sigPeriod ? "active" : ""}" data-p="${k}" role="radio" aria-checked="${k === state.sigPeriod}">${l}</button>`).join("")}</div>`;
+    if (st.n) {
+      h += `<div class="stat-grid">
+        <div class="stat glass"><div class="v">${st.n}</div><div class="l">сделок</div></div>
+        <div class="stat glass"><div class="v">${Math.round(st.winrate)}%</div><div class="l">в плюсе</div></div>
+        <div class="stat glass"><div class="v ${rCls(st.total_r)}">${fmtR(st.total_r)}</div><div class="l">итого</div></div>
+        <div class="stat glass"><div class="v">${st.pf == null ? "∞" : Number(st.pf).toFixed(2)}</div><div class="l">profit factor</div></div>
+      </div>`;
+    } else {
+      h += `<div class="glass card empty" style="padding:18px">За этот период закрытых сигналов нет</div>`;
+    }
+
+    // открытые
+    const open = d.open || [];
+    h += `<div class="section-title">Открытые <small>${open.length}</small></div>`;
+    if (!open.length) h += `<div class="glass card empty" style="padding:18px">Сейчас открытых сигналов нет — бот ждёт сетап</div>`;
+    for (const t of open) {
+      const conf = Math.max(0, Math.min(100, t.conf || 0));
+      h += `<article class="sig-card glass pressable" data-sym="${esc(t.symbol)}" aria-label="${esc(t.side)} ${esc(t.symbol)}, открыть график">
+        <div class="sig-top">
+          <span class="side ${esc(t.side)}">${esc(t.side)}</span>
+          <span class="sig-sym">${esc(t.symbol)}</span>
+          ${t.kind === "contra" ? `<span class="badge contra">против толпы</span>` : ""}
+          ${t.status === "tp1" ? `<span class="badge tp">TP1 ✓</span>` : ""}
+          <span class="sig-r"><span class="r ${rCls(t.r_open)}">${fmtR(t.r_open)}</span><small>${ago(t.opened)}</small></span>
+        </div>
+        <div class="levels">
+          <div class="lv"><div class="l">Вход</div><div class="v">${fmtPrice(t.entry)}</div></div>
+          <div class="lv sl"><div class="l">Стоп</div><div class="v">${fmtPrice(t.sl)}</div></div>
+          <div class="lv tp"><div class="l">TP1</div><div class="v">${fmtPrice(t.tp1)}</div></div>
+          <div class="lv"><div class="l">Цена</div><div class="v">${fmtPrice(t.price)}</div></div>
+        </div>
+        <div class="conf"><span>Сила</span><span class="track"><span class="fill" style="width:${conf}%"></span></span><b>${Math.round(conf)}</b></div>
+        ${(t.reasons || []).length ? `<div class="reasons">${t.reasons.map(esc).join(" · ")}</div>` : ""}
+      </article>`;
+    }
+
+    // закрытые
+    const closed = (d.closed || []).slice(0, 15);
+    if (closed.length) {
+      h += `<div class="section-title">Закрытые <small>последние ${closed.length}</small></div><div class="glass list">`;
+      h += closed.map((t) => `<div class="closed-row">
+          <span class="side ${esc(t.side)}">${esc(t.side)}</span>
+          <span class="n">${esc(t.symbol)}${t.kind === "contra" ? " · против толпы" : ""}<small>${EXIT[t.exit_reason] || esc(t.exit_reason)} · ${t.closed ? fmtTime(t.closed, true) : ""}</small></span>
+          <span class="r ${rCls(t.r_gross)}">${fmtR(t.r_gross)}</span>
+        </div>`).join("");
+      h += `</div>`;
+    }
+
+    // проверка стратегии
+    const bt = d.backtest;
+    if (bt && (bt.rows || []).length) {
+      h += `<div class="section-title">Проверка на истории <small>${bt.days} дн. · ${bt.coins} монет</small></div><div class="glass list">`;
+      h += bt.rows.map((r) => `<div class="exp-row"><span>${r.ok ? "✅" : "▫️"}</span><span>${esc(r.name)}</span>
+          <span class="f">${(r.folds || []).map((x) => fmtR(x)).join(" · ")}</span></div>`).join("");
+      h += `</div><p class="hint">Средний результат на сделку в каждом из периодов, после комиссий. ✅ — вариант в плюсе во всех периодах.</p>`;
+    }
+    h += `<p class="hint">R — результат в единицах риска: −1R = стоп, +1.5R = TP1. Нажми на сигнал — откроется график. Не финансовый совет.</p>`;
+    box.innerHTML = h;
+
+    box.querySelectorAll("#sig-period button").forEach((b) => b.addEventListener("click", () => { state.sigPeriod = b.dataset.p; haptic(); renderSignals(); }));
+    box.querySelectorAll(".sig-card[data-sym]").forEach((c) => c.addEventListener("click", () => {
+      state.asset = c.dataset.sym; state.interval = "60"; switchTab("charts");
+    }));
   }
 
   // ---------------------------------------------------------------- новости
@@ -255,7 +376,8 @@
 
   // ---------------------------------------------------------------- графики
   function renderChartControls() {
-    $("#chart-assets").innerHTML = CHART_ORDER.map((a) => `<button class="chip glass ${a === state.asset ? "active" : ""}" data-a="${esc(a)}" role="tab" aria-selected="${a === state.asset}">${esc(a)}</button>`).join("");
+    const order = CHART_ORDER.includes(state.asset) ? CHART_ORDER : [state.asset, ...CHART_ORDER];
+    $("#chart-assets").innerHTML = order.map((a) => `<button class="chip glass ${a === state.asset ? "active" : ""}" data-a="${esc(a)}" role="tab" aria-selected="${a === state.asset}">${esc(a)}</button>`).join("");
     const seg = $("#chart-interval");
     const idx = Math.max(0, INTERVALS.findIndex(([v]) => v === state.interval));
     seg.style.setProperty("--n", INTERVALS.length);
@@ -303,7 +425,7 @@
     new TradingView.widget({
       container_id: "tv-chart",
       autosize: true,
-      symbol: TV[state.asset],
+      symbol: tvSymbol(state.asset),
       interval: state.interval,
       timezone: TZ,
       theme: dark ? "dark" : "light",
@@ -339,7 +461,7 @@
   }
 
   document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-  $("#refresh").addEventListener("click", () => { haptic(); load(true); });
+  $("#refresh").addEventListener("click", () => { haptic(); load(true); loadSignals(); });
   $("#chart-rsi").addEventListener("change", (e) => { state.rsi = e.target.checked; renderChart(); });
 
   function applyTheme() {
@@ -372,6 +494,8 @@
   }
 
   load(false);
+  loadSignals();
   setInterval(() => load(false), 5 * 60 * 1000);
+  setInterval(() => loadSignals(), 2 * 60 * 1000);
   setInterval(() => { if (state.tab === "overview") renderSessions(); }, 30 * 1000);
 })();
