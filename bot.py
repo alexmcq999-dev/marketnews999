@@ -714,6 +714,14 @@ def build_message(now: datetime, since: datetime, chosen, ai, mkts, cal, ok_sour
             tr = LAST["translations"] = translate_items(chosen)
         rows = [fmt_item(n + 1, c, tr.get(n)) for n, c in enumerate(chosen)]
     parts.append("<b>🔥 Главные события</b>\n\n" + ("\n\n".join(rows) if rows else "Значимых событий не найдено."))
+    try:
+        import event_results as er
+        res_lines = er.digest_lines(LAST.get("calendar", []), since, now)
+    except Exception as e:  # noqa: BLE001
+        print(f"[results] digest: {e}", file=sys.stderr)
+        res_lines = []
+    if res_lines:
+        parts.append("<b>📌 Итоги событий</b>\n" + "\n".join(res_lines))
     if cal:
         parts.append("<b>📅 Календарь (high impact)</b>\n" + "\n".join(cal))
     parts.append(f"<i>Источники: {ok_sources}/{total_sources} доступны. 🏛 — официальный первоисточник, "
@@ -748,20 +756,44 @@ def news_export(chosen, ai, tr) -> list[dict]:
     return out
 
 
+def previous_app() -> dict:
+    """Последняя опубликованная версия данных приложения (кэшируется на запуск)."""
+    if "prev_app" in LAST:
+        return LAST["prev_app"]
+    url = (os.getenv("WEBAPP_URL") or "").rstrip("/")
+    d = {}
+    if url:
+        try:
+            r = requests.get(url + "/data/app.json", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT,
+                             params={"t": int(time.time())})
+            r.raise_for_status()
+            d = r.json()
+        except Exception as e:  # noqa: BLE001
+            print(f"[app] не удалось взять прошлые данные: {e}", file=sys.stderr)
+    LAST["prev_app"] = d
+    return d
+
+
 def previous_news() -> dict:
     """В почасовом режиме новости берём из последней опубликованной версии приложения."""
-    url = (os.getenv("WEBAPP_URL") or "").rstrip("/")
-    if not url:
-        return {}
+    d = previous_app()
+    return {k: d.get(k) for k in ("news", "mood", "news_updated", "news_since") if k in d}
+
+
+def calendar_with_results(now: datetime) -> list[dict]:
+    """Календарь недели + итоги прошедших событий (факт, тон, реакция рынка за час)."""
+    import event_results as er
+    cal = LAST.get("calendar", [])
+    prev = {er.key(e): e["result"] for e in (previous_app().get("calendar") or []) if e.get("result")}
     try:
-        r = requests.get(url + "/data/app.json", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT,
-                         params={"t": int(time.time())})
-        r.raise_for_status()
-        d = r.json()
-        return {k: d.get(k) for k in ("news", "mood", "news_updated", "news_since")}
+        res = er.build(cal, prev, now, llm_json if llm_config() else None)
     except Exception as e:  # noqa: BLE001
-        print(f"[app] не удалось взять прошлые новости: {e}", file=sys.stderr)
-        return {}
+        print(f"[results] ошибка: {e}", file=sys.stderr)
+        res = prev
+    done = sum(1 for r in res.values() if r.get("final"))
+    print(f"[results] итоги: {len(res)} событий, завершено {done}", file=sys.stderr)
+    LAST["calendar"] = er.attach(cal, res)
+    return LAST["calendar"]
 
 
 def export_site(out_dir: str, now: datetime, payload: dict) -> None:
@@ -895,8 +927,8 @@ def main() -> None:
     from sentiment import LAST_SENTIMENT
 
     if args.mode == "data":
-        payload = {"markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT, "calendar": LAST.get("calendar", []),
-                   **previous_news()}
+        payload = {"markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT,
+                   "calendar": calendar_with_results(now), **previous_news()}
         if args.export:
             export_site(args.export, now, payload)
         return
@@ -912,6 +944,7 @@ def main() -> None:
     limit = int(os.getenv("MAX_ITEMS") or 8)
     chosen = select(clusters, limit)
     ai = ai_enrich(chosen, sent_ctx)
+    calendar_with_results(now)
 
     text = build_message(now, since, chosen, ai, mkts, cal, ok_sources, len(FEEDS), sent_lines)
 

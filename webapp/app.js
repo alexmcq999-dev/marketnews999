@@ -193,7 +193,16 @@
       h += `</div>`;
     }
 
+    const done = (d.calendar || []).filter((e) => e.result && e.impact === "High" && new Date(e.ts) < Date.now())
+      .sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 3);
+    if (done.length) {
+      h += `<div class="section-title">Итоги событий</div><div class="glass list">`;
+      h += done.map((e) => `<div class="ev past-res"><span class="time">${fmtTime(e.ts)}</span><span class="title">${FLAGS[e.country] || ""} ${esc(e.title)}${e.actual ? ` — <b>${esc(e.actual)}</b>${e.forecast ? ` <small>(прогноз ${esc(e.forecast)})</small>` : ""}` : ""}</span>${resultBlock(e)}</div>`).join("");
+      h += `</div>`;
+    }
+
     $("#tab-overview").innerHTML = h || `<div class="glass card empty">Нет данных</div>`;
+    document.querySelectorAll("#tab-overview .res-src").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
     renderSessions();
     document.querySelectorAll(".quote[data-asset]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -342,6 +351,34 @@
     box.querySelectorAll(".links button").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
   }
 
+  // ---------------------------------------------------------------- итоги событий
+  // «выше/ниже прогноза» — описание, не оценка (высокая инфляция выше прогноза — плохо для риска), поэтому цвет нейтральный
+  const VS = { above: ["выше прогноза ↑", "vs"], below: ["ниже прогноза ↓", "vs"], inline: ["в рамках прогноза", "vs"] };
+  const TONE = { hawkish: ["ястребино", "hawk"], dovish: ["голубино", "dove"], neutral: ["нейтрально", "flat"] };
+  function rxChip(x) {
+    const v = Number(x.value);
+    const cls = Math.abs(v) < (x.unit === "bp" ? 1 : 0.05) ? "flat" : v > 0 ? "up" : "down";
+    const val = x.unit === "bp" ? `${v > 0 ? "+" : ""}${v.toFixed(0)} б.п.` : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+    return `<span class="rx ${cls}">${esc(x.asset)} ${val}</span>`;
+  }
+  function resultBlock(e) {
+    const r = e.result;
+    if (!r) return "";
+    const chips = [];
+    if (r.vs_forecast && VS[r.vs_forecast]) chips.push(`<span class="res-chip ${VS[r.vs_forecast][1]}">${VS[r.vs_forecast][0]}</span>`);
+    if (r.tone && TONE[r.tone]) chips.push(`<span class="res-chip ${TONE[r.tone][1]}">${TONE[r.tone][0]}</span>`);
+    if (r.decision) chips.push(`<span class="res-chip">${esc(r.decision)}</span>`);
+    const rx = (r.reaction || []).map(rxChip).join("");
+    const src = (r.sources || [])[0];
+    return `<div class="res">
+      ${chips.length ? `<div class="res-chips">${chips.join("")}</div>` : ""}
+      ${r.summary ? `<p class="res-sum">${esc(r.summary)}</p>` : ""}
+      ${rx ? `<div class="rx-row"><span class="rx-l">${r.reaction_full ? "Реакция за час" : "Реакция (идёт час)"}</span>${rx}</div>` : ""}
+      ${r.impact ? `<p class="res-imp">${esc(r.impact)}</p>` : (r.reaction_label ? `<p class="res-imp">${esc(r.reaction_label)}</p>` : "")}
+      ${src && src.url ? `<button class="res-src" data-url="${esc(src.url)}">${esc(src.source || "источник")} ↗</button>` : ""}
+    </div>`;
+  }
+
   // ---------------------------------------------------------------- календарь
   function renderCalendar() {
     const ev = state.data.calendar || [];
@@ -361,17 +398,19 @@
       h += `<div class="day-title"><b>${d.today ? "Сегодня" : esc(d.k)}</b><span>${high ? `${high} важн.` : ""}</span></div><div class="glass list">`;
       for (const { e, i } of d.items) {
         const nums = [e.actual && `факт <b>${esc(e.actual)}</b>`, e.forecast && `прогноз ${esc(e.forecast)}`, e.previous && `пред. ${esc(e.previous)}`].filter(Boolean).join(" · ");
-        h += `<div class="ev ${new Date(e.ts) < now ? "past" : ""} ${i === nextIdx ? "next" : ""}">
+        h += `<div class="ev ${new Date(e.ts) < now ? "past" : ""} ${e.result ? "has-res" : ""} ${i === nextIdx ? "next" : ""}">
           <span class="time">${fmtTime(e.ts)}</span>
           <span class="title">${FLAGS[e.country] || ""} ${esc(e.title)}</span>
           <span class="imp ${e.impact === "High" ? "high" : ""}">${e.impact === "High" ? "высокая важность" : "средняя важность"}</span>
           ${nums ? `<span class="nums">${nums}</span>` : ""}
+          ${resultBlock(e)}
         </div>`;
       }
       h += `</div>`;
     }
-    h += `<p class="hint">Время московское. Источник: ForexFactory.</p>`;
+    h += `<p class="hint">Время московское. Календарь — ForexFactory. Итоги: факт берётся из свежих заголовков новостей и проверяется, реакция рынка — измеренное изменение цены за 60 минут после события.</p>`;
     box.innerHTML = h;
+    box.querySelectorAll(".res-src").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
   }
 
   // ---------------------------------------------------------------- графики

@@ -383,6 +383,26 @@ main { padding: 4px 16px 0; }
 
 .empty { color: var(--text-2); text-align: center; padding: 34px 16px; }
 
+/* итоги событий */
+.ev.past.has-res { opacity: 1; }
+.ev.past.has-res .time, .ev.past.has-res .title { opacity: .7; }
+.res { grid-column: 1 / -1; margin-top: 8px; padding: 11px 12px; border-radius: 14px; background: var(--glass-strong); box-shadow: inset 0 1px 0 var(--inner); }
+.res-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.res-chip { font-size: 12px; font-weight: 650; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.res-chip.up { color: var(--up); background: color-mix(in srgb, var(--up) 15%, transparent); }
+.res-chip.down { color: var(--down); background: color-mix(in srgb, var(--down) 15%, transparent); }
+.res-chip.vs { color: var(--accent); background: var(--accent-soft); }
+.res-chip.hawk { color: var(--orange); background: color-mix(in srgb, var(--orange) 16%, transparent); }
+.res-chip.dove { color: var(--c-asia); background: color-mix(in srgb, var(--c-asia) 16%, transparent); }
+.res-sum { margin: 0 0 8px; font-size: 13.5px; line-height: 1.45; }
+.res-imp { margin: 8px 0 0; font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+.rx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rx-l { font-size: 11px; font-weight: 650; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; }
+.rx { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; padding: 3px 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.rx.up { color: var(--up); } .rx.down { color: var(--down); } .rx.flat { color: var(--text-2); }
+.res-src { margin-top: 8px; border: 0; background: transparent; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 0; cursor: pointer; }
+.ev.past-res .title small { color: var(--text-3); font-weight: 500; }
+
 /* ---------------------------------------------------------------- торговые сессии */
 .sess-now { padding: 18px; border-radius: var(--r-xl); overflow: hidden; }
 .sess-now::after { background: radial-gradient(120% 90% at 100% 0%, var(--sess-glow, transparent), transparent 60%), radial-gradient(120% 70% at 12% -10%, var(--spec), transparent 55%); }
