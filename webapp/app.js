@@ -293,6 +293,27 @@
       h += `</div>`;
     }
 
+    // толпа на фьючерсах
+    const crowd = (d.crowd || []).filter((c) => c.z != null);
+    if (crowd.length) {
+      const hot = crowd.filter((c) => Math.abs(c.z) >= 1.5);
+      const show = (state.crowdAll ? crowd : (hot.length ? hot : crowd.slice(0, 6)));
+      h += `<div class="section-title">Толпа на фьючерсах <small>Binance · ${esc(crowd[0].day || "")}</small></div><div class="glass list crowd">`;
+      h += show.map((c) => {
+        const z = Math.max(-3, Math.min(3, c.z));
+        const left = z >= 0 ? 50 : 50 + (z / 3) * 50, width = Math.abs(z) / 3 * 50;
+        const cls = c.z >= 1.5 ? "long" : c.z <= -1.5 ? "short" : "";
+        return `<div class="crowd-row">
+          <span class="cs">${esc(c.symbol)}<small>${esc(c.label)}</small></span>
+          <span class="zbar"><span class="mid"></span><span class="zfill ${cls}" style="left:${left}%;width:${width}%"></span></span>
+          <span class="zv ${cls}">${c.z > 0 ? "+" : ""}${Number(c.z).toFixed(1)}</span>
+          <span class="cm">L/S ${c.ls != null ? Number(c.ls).toFixed(2) : "—"}${c.top_z != null ? ` · топ-трейдеры ${c.top_z > 0 ? "+" : ""}${Number(c.top_z).toFixed(1)}` : ""}${c.oi_chg != null ? ` · OI 3д ${c.oi_chg > 0 ? "+" : ""}${Number(c.oi_chg).toFixed(1)}%` : ""}</span>
+        </div>`;
+      }).join("");
+      h += `</div><button class="chip glass crowd-toggle">${state.crowdAll ? "Показать только перекосы" : `Все монеты (${crowd.length})`}</button>
+        <p class="hint">z — насколько сейчас перекошено соотношение лонгов и шортов у розницы против её обычного уровня за 2 недели. От +1.5 — толпа перегружена лонгами, от −1.5 — шортами. Бот не открывает сделки туда, где толпа уже перегружена (z ≥ 2).</p>`;
+    }
+
     // проверка стратегии
     const bt = d.backtest;
     if (bt && (bt.rows || []).length) {
@@ -304,6 +325,8 @@
     h += `<p class="hint">R — результат в единицах риска: −1R = стоп, +1.5R = TP1. Нажми на сигнал — откроется график. Не финансовый совет.</p>`;
     box.innerHTML = h;
 
+    const ct = box.querySelector(".crowd-toggle");
+    if (ct) ct.addEventListener("click", () => { state.crowdAll = !state.crowdAll; haptic(); renderSignals(); });
     box.querySelectorAll("#sig-period button").forEach((b) => b.addEventListener("click", () => { state.sigPeriod = b.dataset.p; haptic(); renderSignals(); }));
     box.querySelectorAll(".sig-card[data-sym]").forEach((c) => c.addEventListener("click", () => {
       state.asset = c.dataset.sym; state.interval = "60"; switchTab("charts");
