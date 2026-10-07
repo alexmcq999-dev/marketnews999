@@ -519,6 +519,26 @@ main { padding: 4px 16px 0; }
 .crowd-row .cm { grid-column: 2 / -1; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .crowd-toggle { margin-top: 10px; }
 
+/* карта ликвидаций */
+.liq { padding: 14px 14px 12px; border-radius: var(--r-xl); }
+.liq-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--text-2); margin-bottom: 10px; }
+.liq-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.liq-legend i.sh, .lf.sh { background: var(--up); }
+.liq-legend i.lo, .lf.lo { background: var(--down); }
+.liq-ladder { display: grid; gap: 1px; }
+.liq-row { display: grid; grid-template-columns: 74px 1fr 52px; gap: 8px; align-items: center; height: 9px; }
+.liq-row .lq-p { font-size: 10.5px; color: var(--text-3); text-align: right; font-variant-numeric: tabular-nums; line-height: 1; }
+.liq-row .lq-b { height: 7px; }
+.liq-row .lf { display: block; height: 100%; border-radius: 0 4px 4px 0; opacity: .85; }
+.liq-row .lq-v { font-size: 10px; color: var(--text-2); font-variant-numeric: tabular-nums; line-height: 1; }
+.liq-now { position: relative; height: 16px; margin: 2px 0; }
+.liq-now::before { content: ""; position: absolute; left: 82px; right: 0; top: 50%; border-top: 1.5px dashed var(--text); opacity: .7; }
+.liq-now span { position: absolute; left: 0; width: 74px; top: 50%; transform: translateY(-50%); text-align: right; font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.liq-sum { margin-top: 12px; font-size: 12.5px; }
+.liq-sum b { display: block; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); margin: 8px 0 6px; }
+.liq-tot { margin-top: 10px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.liq-cg { margin-top: 10px; }
+
 /* ---------------------------------------------------------------- плавающий таббар */
 .tabbar {
   position: fixed; z-index: 30; left: 50%; transform: translateX(-50%);

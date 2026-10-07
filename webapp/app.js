@@ -129,6 +129,7 @@
         if (!r.ok) continue;
         state.sig = await r.json();
         renderSignals();
+        if (state.tab === "charts") renderLiq();
         return;
       } catch (e) { /* пробуем следующий источник */ }
     }
@@ -436,6 +437,53 @@
     box.querySelectorAll(".res-src").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
   }
 
+  // ---------------------------------------------------------------- карта ликвидаций (оценка McQ Signals)
+  const COINGLASS = "https://www.coinglass.com/pro/futures/LiquidationHeatMap";
+  function fmtUsd(v) {
+    return v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${Math.round(v / 1e6)}M` : `$${Math.round(v / 1e3)}K`;
+  }
+  function lpx(v) {
+    const a = Math.abs(v);
+    return Number(v).toLocaleString("ru-RU", { maximumFractionDigits: a >= 1000 ? 0 : a >= 10 ? 2 : a >= 1 ? 3 : 5 });
+  }
+  function renderLiq() {
+    const box = $("#liq-box");
+    if (!box) return;
+    const lm = state.sig && state.sig.liqmap;
+    const m = lm && lm.symbols ? lm.symbols[state.asset] : null;
+    const avail = lm && lm.symbols ? Object.keys(lm.symbols) : [];
+    let h = `<div class="section-title">Карта ликвидаций <small>оценка</small></div>`;
+    if (!m) {
+      h += `<div class="glass card empty" style="padding:18px">${avail.length ? `Для ${esc(state.asset)} карты нет. Есть для: ${avail.map(esc).join(", ")}.` : "Карта появится после ближайшего скана бота McQ Signals."}</div>`;
+    } else {
+      const n = m.bins.length, max = Math.max(1, ...m.long_usd, ...m.short_usd);
+      let rows = "";
+      let marked = false;
+      for (let i = n - 1; i >= 0; i--) {
+        const p = m.bins[i], above = p > m.price;
+        if (!marked && !above) {
+          rows += `<div class="liq-now"><span>${lpx(m.price)}</span></div>`;
+          marked = true;
+        }
+        const v = above ? m.short_usd[i] : m.long_usd[i];
+        const w = Math.max(v > 0 ? 1.5 : 0, (v / max) * 100);
+        rows += `<div class="liq-row"><span class="lq-p">${i % 4 === 0 ? lpx(p) : ""}</span><span class="lq-b"><span class="lf ${above ? "sh" : "lo"}" style="width:${w}%"></span></span><span class="lq-v">${v / max > 0.25 ? fmtUsd(v) : ""}</span></div>`;
+      }
+      const cl = (arr) => arr.map((c) => `<span class="res-chip">${lpx(c.price)} · ${c.dist_pct > 0 ? "+" : ""}${c.dist_pct}% · ${fmtUsd(c.usd)}</span>`).join("");
+      h += `<div class="glass liq">
+        <div class="liq-legend"><span><i class="sh"></i>шорты — ликвидация при росте</span><span><i class="lo"></i>лонги — при падении</span></div>
+        <div class="liq-ladder">${rows}</div>
+        <div class="liq-sum"><b>Магниты выше</b><div class="res-chips">${cl(m.clusters_above) || "—"}</div>
+          <b>Магниты ниже</b><div class="res-chips">${cl(m.clusters_below) || "—"}</div>
+          <div class="liq-tot">В пределах ±5%: шорты ${fmtUsd(m.within5_short)} · лонги ${fmtUsd(m.within5_long)}</div></div>
+      </div>
+      <p class="hint">Модель McQ Signals: часовой открытый интерес Binance + типичные плечи 5–100x; уровни, которые цена уже прошла, убраны. Это оценка, а не реальные позиции. Позиции последних ~суток не видны (данные по ${esc(m.data_until || "—")}). Крупные скопления часто работают как «магниты» для цены.</p>`;
+    }
+    h += `<button class="chip glass liq-cg">Тепловая карта на Coinglass ↗</button>`;
+    box.innerHTML = h;
+    box.querySelector(".liq-cg").addEventListener("click", () => openLink(COINGLASS));
+  }
+
   // ---------------------------------------------------------------- графики
   function renderChartControls() {
     const order = CHART_ORDER.includes(state.asset) ? CHART_ORDER : [state.asset, ...CHART_ORDER];
@@ -446,6 +494,7 @@
     seg.style.setProperty("--i", idx);
     seg.innerHTML = `<span class="thumb-glass" aria-hidden="true"></span>` + INTERVALS.map(([v, l]) => `<button class="${v === state.interval ? "active" : ""}" data-i="${v}" role="radio" aria-checked="${v === state.interval}">${l}</button>`).join("");
     document.querySelectorAll("#chart-assets .chip").forEach((b) => b.addEventListener("click", () => { state.asset = b.dataset.a; haptic(); renderChartControls(); renderChart(); }));
+    renderLiq();
     document.querySelectorAll("#chart-interval button").forEach((b) => b.addEventListener("click", () => { state.interval = b.dataset.i; haptic(); renderChartControls(); renderChart(); }));
   }
 
