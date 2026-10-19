@@ -801,6 +801,17 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
     if os.path.isdir(src):
         shutil.copytree(src, out_dir, dirs_exist_ok=True)
+        # сброс кэша Telegram: ссылки на css/js/картинки получают версию сборки (?v=...),
+        # иначе WebView в Telegram может часами показывать старую версию приложения
+        idx = os.path.join(out_dir, "index.html")
+        if os.path.exists(idx):
+            import re as _re
+            ver = now.strftime("%Y%m%d%H%M")
+            with open(idx, encoding="utf-8") as f:
+                html = f.read()
+            html = _re.sub(r'((?:src|href)=")([\w./-]+\.(?:js|css|svg|jpg|png))(")', rf'\g<1>\g<2>?v={ver}\g<3>', html)
+            with open(idx, "w", encoding="utf-8") as f:
+                f.write(html)
     os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
     data = {"updated": now.isoformat(), **payload}
     with open(os.path.join(out_dir, "data", "app.json"), "w", encoding="utf-8") as f:
