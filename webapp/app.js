@@ -5,6 +5,10 @@
   const tg = window.Telegram && window.Telegram.WebApp;
   const I18 = window.I18N || { t: (s) => s, lang: "ru", locale: "ru-RU", tv: "ru", langs: {}, setLang() {}, translateDom() {} };
   const _t = I18.t, LOCALE = I18.locale;
+  const CYR = /[А-Яа-яЁё]/;
+  // текст от бота: на русском — как есть; на других языках — перевод из словаря, а если его нет — скрываем
+  const loc = (s) => (I18.lang === "ru" || !s || !CYR.test(s) ? s || "" : (_t(s) !== s ? _t(s) : ""));
+  const locList = (s) => (s || "").split(",").map((x) => loc(x.trim())).filter(Boolean).join(", ");
   I18.translateDom(document.body);
   // прелоадер: показываем минимум 1.2 с (чтобы логотип успел «вдохнуть»), максимум 7 с
   const T0 = Date.now();
@@ -189,7 +193,8 @@
     <p class="explain simple-only">${_t("Настроение — индекс страха и жадности:")} <b>0–25</b> ${_t("паника,")} <b>75–100</b> ${_t("эйфория. На крайностях рынок часто разворачивается.")}</p>`;
     let mh = "";
     // текст «Что происходит» бот пишет по-русски; на других языках показываем только если есть перевод
-    const mood = I18.lang === "ru" ? d.mood : d[`mood_${I18.lang}`] || d.mood_en;
+    const mi = d.mood_i18n || {};
+    const mood = I18.lang === "ru" ? d.mood : mi[I18.lang] || mi.en || "";
     if (mood) {
       mh += `<div class="mood glass" style="margin-top:12px"><div class="label"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 8.5-2 5-5 2 2-5z" fill="currentColor"/></svg>${_t("Что происходит")}${d.news_updated ? " · " + fmtTime(d.news_updated, !isToday(d.news_updated)) : ""}</div><p>${esc(mood)}</p></div>`;
     }
@@ -400,7 +405,7 @@
         <div><span>${_t("Режим")}</span><b>${esc({ trend: _t("тренд"), range: _t("флэт"), neutral: _t("переходный") }[t.regime] || t.regime || "—")}</b><em>${fmtTime(t.opened, true)}</em></div>
       </div>
       <div class="conf"><span>${_t("Сила")}</span><span class="track"><span class="fill" style="width:${conf}%"></span></span><b>${Math.round(conf)}</b></div>
-      ${(t.reasons || []).length ? `<div class="reasons">${t.reasons.map(esc).join(" · ")}</div>` : ""}
+      ${(t.reasons || []).length ? `<div class="reasons">${t.reasons.map((x) => esc(_t(x))).join(" · ")}</div>` : ""}
       <div class="pr-exit">${_t("После TP1: 50% закрыть, стоп в б/у, остаток — трейлинг")} ${(state.sig.exit || {}).trail_atr || 3}×ATR</div>
     </article>`;
   }
@@ -472,7 +477,7 @@
     if (!nb && (d.strategy === "breakout" || d.strategy === "both") && radar.length) {
       h += `<div class="section-title">${_t("На радаре")} <small>${_t("готовятся пробои")}</small></div><div class="glass list">` + radar.slice(0, 8).map((r) => `<div class="closed-row radar-row" data-sym="${esc(r.symbol)}">
           <span class="side ${esc(r.side)}">${esc(r.side)}</span>
-          <span class="n">${esc(r.symbol)} · ${_t("уровень")} ${fmtPrice(r.level)}<small>${esc(r.notes || "")}</small></span>
+          <span class="n">${esc(r.symbol)} · ${_t("уровень")} ${fmtPrice(r.level)}<small>${esc(loc(r.notes))}</small></span>
           <span class="r">${Math.round(r.score)}</span></div>`).join("") + `</div>`;
     }
 
@@ -552,24 +557,33 @@
     let h = `<div class="chips">${themes.map((t) => `<button class="chip glass ${t === state.newsFilter ? "active" : ""}" data-f="${esc(t)}">${esc(_t(t))}</button>`).join("")}</div>`;
     if (state.data.news_updated) h += `<div class="issue">${_t("Выпуск")} ${fmtTime(state.data.news_updated, true)} ${_t("МСК ·")} ${news.length} ${news.length < 5 ? _t("события") : _t("событий")}</div>`;
 
-    const ru = I18.lang === "ru";  // разбор новостей бот пишет по-русски — на других языках показываем заголовок и источники
+    const ru = I18.lang === "ru";
+    const nb = state.mode === "simple";
     const list = news.filter((n) => state.newsFilter === _t("Все") || (n.themes || []).includes(state.newsFilter));
     for (const n of list) {
+      // перевод разбора от бота: выбранный язык → английский; без перевода — только заголовок и источники
+      const tr = ru ? null : ((n.i18n || {})[I18.lang] || (n.i18n || {}).en || null);
+      const pick = (k) => (ru ? n[k] : tr ? tr[k] : "") || "";
+      const title = ru ? n.title : (tr && tr.title) || n.title_en || n.title;
+      const assets = ru ? n.assets : (tr && tr.assets) || locList(n.assets);
+      const why = pick("why"), summary = pick("summary"), watch = pick("watch");
+      const whyBox = why ? `<div class="insight impact ${nb ? "nb-why" : ""}"><b>${ICON_IMPACT}${nb ? _t("Что это значит для рынка") : _t("Влияние на рынки")}</b>${esc(why)}</div>` : "";
       h += `<article class="news-card glass">
         <div class="news-head">
           <span class="theme-pill">${esc(n.emoji)} ${esc(_t((n.themes || [])[0] || "Рынки"))}</span>
           <span class="news-time">${fmtTime(n.ts, !isToday(n.ts))}</span>
         </div>
-        <h3>${esc(I18.lang !== "ru" && n.title_en ? n.title_en : n.title)}</h3>
-        ${I18.lang === "ru" && n.title_en && n.title_en !== n.title ? `<div class="en pro-only">${esc(n.title_en)}</div>` : ""}
-        ${ru && n.summary ? `<p>${esc(n.summary)}</p>` : ""}
-        ${ru && n.why ? `<div class="insight impact"><b>${ICON_IMPACT}${_t("Влияние на рынки")}</b>${esc(n.why)}</div>` : ""}
-        ${ru && n.watch ? `<div class="insight watch"><b>${ICON_WATCH}${_t("Следить")}</b>${esc(n.watch)}</div>` : ""}
-        ${(n.bias && BIAS[n.bias]) || n.assets ? `<div class="meta">
+        <h3>${esc(title)}</h3>
+        ${ru && n.title_en && n.title_en !== n.title ? `<div class="en pro-only">${esc(n.title_en)}</div>` : ""}
+        ${nb ? whyBox : ""}
+        ${summary ? `<p ${nb ? 'style="margin-top:12px"' : ""}>${esc(summary)}</p>` : ""}
+        ${nb ? "" : whyBox}
+        ${watch ? `<div class="insight watch"><b>${ICON_WATCH}${_t("Следить")}</b>${esc(watch)}</div>` : ""}
+        ${(n.bias && BIAS[n.bias]) || assets ? `<div class="meta">
           ${n.bias && BIAS[n.bias] ? `<span class="bias ${n.bias}">${BIAS[n.bias]}</span>` : ""}
-          ${n.assets ? `<span class="tag">${esc(n.assets)}</span>` : ""}
+          ${assets ? `<span class="tag">${esc(assets)}</span>` : ""}
         </div>` : ""}
-        <div class="trust pro-only">${esc(n.trust)}</div>
+        <div class="trust pro-only">${esc(loc(n.trust))}</div>
         <div class="links">${(n.links || []).map((l) => `<button data-url="${esc(l.url)}">${esc(l.outlet)} ↗</button>`).join("")}</div>
       </article>`;
     }
@@ -594,14 +608,14 @@
     const chips = [];
     if (r.vs_forecast && VS[r.vs_forecast]) chips.push(`<span class="res-chip ${VS[r.vs_forecast][1]}">${VS[r.vs_forecast][0]}</span>`);
     if (r.tone && TONE[r.tone]) chips.push(`<span class="res-chip ${TONE[r.tone][1]}">${TONE[r.tone][0]}</span>`);
-    if (r.decision) chips.push(`<span class="res-chip">${esc(r.decision)}</span>`);
+    if (loc(r.decision)) chips.push(`<span class="res-chip">${esc(loc(r.decision))}</span>`);
     const rx = (r.reaction || []).map(rxChip).join("");
     const src = (r.sources || [])[0];
     return `<div class="res">
       ${chips.length ? `<div class="res-chips">${chips.join("")}</div>` : ""}
-      ${r.summary ? `<p class="res-sum">${esc(r.summary)}</p>` : ""}
+      ${loc(r.summary) ? `<p class="res-sum">${esc(loc(r.summary))}</p>` : ""}
       ${rx ? `<div class="rx-row"><span class="rx-l">${r.reaction_full ? _t("Реакция за час") : _t("Реакция (идёт час)")}</span>${rx}</div>` : ""}
-      ${r.impact ? `<p class="res-imp">${esc(r.impact)}</p>` : (r.reaction_label ? `<p class="res-imp">${esc(r.reaction_label)}</p>` : "")}
+      ${loc(r.impact) ? `<p class="res-imp">${esc(loc(r.impact))}</p>` : (loc(r.reaction_label) ? `<p class="res-imp">${esc(loc(r.reaction_label))}</p>` : "")}
       ${src && src.url ? `<button class="res-src" data-url="${esc(src.url)}">${esc(src.source || _t("источник"))} ↗</button>` : ""}
     </div>`;
   }

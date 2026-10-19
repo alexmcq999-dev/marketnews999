@@ -759,3 +759,7 @@ b.up, .nb-steps b.up { color: var(--up); } b.down, .nb-steps b.down { color: var
 .lang-menu button:active { background: var(--glass-press); }
 .lang-menu button.on, .lang-menu button.on span { background: #fff; color: #000 !important; }
 .lang-menu button.on b { color: rgba(0,0,0,.5); }
+
+/* новичку — пояснение «что это значит для рынка» сразу под заголовком и заметнее */
+.insight.nb-why { background: rgba(255,255,255,.10); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-size: 15px; line-height: 1.5; }
+.insight.nb-why b { color: var(--text); }

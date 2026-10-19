@@ -595,10 +595,53 @@ def ai_enrich(chosen: list[dict], market_ctx: str = "") -> dict | None:
         except Exception as e:  # noqa: BLE001
             print(f"[LLM] mood: {e}", file=sys.stderr)
         print(f"[LLM] обработано {len(picked)}/{len(chosen)} новостей", file=sys.stderr)
-        return {"mood": mood, "items": picked}
+        mood_i18n = ai_translate(picked, mood)
+        return {"mood": mood, "items": picked, "mood_i18n": mood_i18n}
     except Exception as e:  # noqa: BLE001
         print(f"[LLM] ошибка, перехожу на простой перевод: {e}", file=sys.stderr)
         return None
+
+
+# ---------------------------------------------------------------- переводы для мини-приложения
+APP_LANGS = {"en": "English", "es": "Spanish", "fr": "French", "ko": "Korean", "zh": "Simplified Chinese"}
+
+
+def ai_translate(picked: list, mood: str) -> dict:
+    """Переводит разбор новостей (заголовок, суть, влияние на рынки, за чем следить, активы) и общий фон
+    на языки мини-приложения. Кладёт it["i18n"][lang] = {...}; возвращает {lang: mood}. Ошибка — язык пропускается."""
+    src = [{"id": n, "title": it.get("title_ru", ""), "summary": it.get("summary_ru", ""), "why": it.get("why", ""),
+            "watch": it.get("watch", ""), "assets": it.get("assets", "")} for n, (_, it) in enumerate(picked)]
+
+    def one(lang):
+        name = APP_LANGS[lang]
+        prompt = (f"Translate this Russian market-news content into {name}. Keep it natural and clear for retail "
+                  "traders, keep numbers, tickers and names as is, keep the meaning of every sentence. "
+                  "Return JSON: {\"mood\": \"...\", \"items\": [{\"id\", \"title\", \"summary\", \"why\", "
+                  "\"watch\", \"assets\"}]} with the same ids; empty strings stay empty.\n\n"
+                  + json.dumps({"mood": mood, "items": src}, ensure_ascii=False))
+        return lang, llm_json(prompt, max_tokens=4000)
+
+    moods = {}
+    with ThreadPoolExecutor(max_workers=len(APP_LANGS)) as pool:
+        futs = [pool.submit(one, l) for l in APP_LANGS]
+        for f in futs:
+            try:
+                lang, data = f.result()
+            except Exception as e:  # noqa: BLE001
+                print(f"[LLM] перевод: {e}", file=sys.stderr)
+                continue
+            if data.get("mood"):
+                moods[lang] = data["mood"]
+            for row in data.get("items") or []:
+                try:
+                    n = int(row["id"])
+                except (KeyError, ValueError, TypeError):
+                    continue
+                if 0 <= n < len(picked):
+                    picked[n][1].setdefault("i18n", {})[lang] = {
+                        k: str(row.get(k) or "") for k in ("title", "summary", "why", "watch", "assets")}
+    print(f"[LLM] переводы для приложения: {', '.join(moods) or 'нет'}", file=sys.stderr)
+    return moods
 
 
 # ---------------------------------------------------------------- запасной вариант: машинный перевод
@@ -752,6 +795,7 @@ def news_export(chosen, ai, tr) -> list[dict]:
             "trust": re.sub(r"<[^>]+>", "", trust_badge(c)),
             "ts": c["ts"].isoformat(),
             "links": [{"outlet": i["outlet"], "url": i["link"]} for i in _uniq_by_outlet(c["items"])[:5]],
+            "i18n": it.get("i18n") or {},
         })
     return out
 
@@ -777,7 +821,7 @@ def previous_app() -> dict:
 def previous_news() -> dict:
     """В почасовом режиме новости берём из последней опубликованной версии приложения."""
     d = previous_app()
-    return {k: d.get(k) for k in ("news", "mood", "news_updated", "news_since") if k in d}
+    return {k: d.get(k) for k in ("news", "mood", "mood_i18n", "news_updated", "news_since") if k in d}
 
 
 def calendar_with_results(now: datetime) -> list[dict]:
@@ -963,6 +1007,7 @@ def main() -> None:
         export_site(args.export, now, {
             "markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT, "calendar": LAST.get("calendar", []),
             "news": news_export(chosen, ai, LAST.get("translations")), "mood": (ai or {}).get("mood", ""),
+            "mood_i18n": (ai or {}).get("mood_i18n") or {},
             "news_updated": now.isoformat(), "news_since": since.isoformat()})
 
     if args.dry_run:
