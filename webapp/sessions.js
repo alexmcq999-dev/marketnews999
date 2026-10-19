@@ -2,6 +2,8 @@
    Переходы на летнее/зимнее время учитываются автоматически через часовые пояса бирж. */
 (function () {
   "use strict";
+  const _t = (window.I18N && window.I18N.t) || ((x) => x);
+  const LOCALE = (window.I18N && window.I18N.locale) || "ru-RU";
 
   const MSK = "Europe/Moscow";
 
@@ -16,23 +18,23 @@
 
   // region: цвет строки; main — основная сессия (с обеденными перерывами), ext — доп. сессии
   const MARKETS = [
-    { id: "tse", flag: "🇯🇵", name: "Токио", ex: "TSE", tz: "Asia/Tokyo", region: "asia",
+    { id: "tse", flag: "🇯🇵", name: _t("Токио"), ex: "TSE", tz: "Asia/Tokyo", region: "asia",
       main: [["09:00", "11:30"], ["12:30", "15:30"]] },
-    { id: "hkex", flag: "🇭🇰", name: "Гонконг", ex: "HKEX", tz: "Asia/Hong_Kong", region: "asia",
+    { id: "hkex", flag: "🇭🇰", name: _t("Гонконг"), ex: "HKEX", tz: "Asia/Hong_Kong", region: "asia",
       main: [["09:30", "12:00"], ["13:00", "16:00"]] },
-    { id: "sse", flag: "🇨🇳", name: "Шанхай", ex: "SSE", tz: "Asia/Shanghai", region: "asia",
+    { id: "sse", flag: "🇨🇳", name: _t("Шанхай"), ex: "SSE", tz: "Asia/Shanghai", region: "asia",
       main: [["09:30", "11:30"], ["13:00", "15:00"]] },
-    { id: "moex", flag: "🇷🇺", name: "Мосбиржа", ex: "MOEX", tz: "Europe/Moscow", region: "ru",
-      main: [["10:00", "18:50"]], ext: [["06:50", "09:50", "утренняя сессия"], ["19:05", "23:50", "вечерняя сессия"]] },
-    { id: "xetra", flag: "🇩🇪", name: "Франкфурт", ex: "Xetra", tz: "Europe/Berlin", region: "eu",
+    { id: "moex", flag: "🇷🇺", name: _t("Мосбиржа"), ex: "MOEX", tz: "Europe/Moscow", region: "ru",
+      main: [["10:00", "18:50"]], ext: [["06:50", "09:50", _t("утренняя сессия")], ["19:05", "23:50", _t("вечерняя сессия")]] },
+    { id: "xetra", flag: "🇩🇪", name: _t("Франкфурт"), ex: "Xetra", tz: "Europe/Berlin", region: "eu",
       main: [["09:00", "17:30"]] },
-    { id: "lse", flag: "🇬🇧", name: "Лондон", ex: "LSE", tz: "Europe/London", region: "eu",
+    { id: "lse", flag: "🇬🇧", name: _t("Лондон"), ex: "LSE", tz: "Europe/London", region: "eu",
       main: [["08:00", "16:30"]] },
-    { id: "nyse", flag: "🇺🇸", name: "Нью-Йорк", ex: "NYSE · Nasdaq", tz: "America/New_York", region: "us",
-      main: [["09:30", "16:00"]], ext: [["04:00", "09:30", "премаркет"], ["16:00", "20:00", "постмаркет"]],
+    { id: "nyse", flag: "🇺🇸", name: _t("Нью-Йорк"), ex: "NYSE · Nasdaq", tz: "America/New_York", region: "us",
+      main: [["09:30", "16:00"]], ext: [["04:00", "09:30", _t("премаркет")], ["16:00", "20:00", _t("постмаркет")]],
       holidays: NYSE_HOLIDAYS, early: NYSE_EARLY, earlyClose: "13:00" },
   ];
-  const REGION_NAME = { asia: "Азия", ru: "Россия", eu: "Европа", us: "США" };
+  const REGION_NAME = { asia: _t("Азия"), ru: _t("Россия"), eu: _t("Европа"), us: _t("США") };
 
   // ---------------------------------------------------------------- время и пояса
   const dtfCache = {};
@@ -101,21 +103,21 @@
   // ---------------------------------------------------------------- форматирование
   function dur(ms) {
     const m = Math.max(1, Math.round(ms / 60000));
-    if (m < 60) return `${m} мин`;
+    if (m < 60) return `${m} ${_t("мин")}`;
     const h = Math.floor(m / 60), r = m % 60;
-    if (h < 24) return r ? `${h} ч ${r} мин` : `${h} ч`;
+    if (h < 24) return r ? `${h} ${_t("ч")} ${r} ${_t("мин")}` : `${h} ${_t("ч")}`;
     const d = Math.floor(h / 24), hh = h % 24;
-    return hh ? `${d} д ${hh} ч` : `${d} д`;
+    return hh ? `${d} ${_t("д")} ${hh} ${_t("ч")}` : `${d} ${_t("д")}`;
   }
   function hm(ms) {
-    return new Date(ms).toLocaleTimeString("ru-RU", { timeZone: MSK, hour: "2-digit", minute: "2-digit" });
+    return new Date(ms).toLocaleTimeString(LOCALE, { timeZone: MSK, hour: "2-digit", minute: "2-digit" });
   }
   function dayLabel(t, now) {
     const a = parts(t, MSK), b = parts(now, MSK);
-    if (a.y === b.y && a.m === b.m && a.d === b.d) return "в ";
+    if (a.y === b.y && a.m === b.m && a.d === b.d) return _t("в ");
     const tomorrow = parts(now + 864e5, MSK);
-    if (a.y === tomorrow.y && a.m === tomorrow.m && a.d === tomorrow.d) return "завтра ";
-    return new Date(t).toLocaleDateString("ru-RU", { timeZone: MSK, weekday: "short" }) + " ";
+    if (a.y === tomorrow.y && a.m === tomorrow.m && a.d === tomorrow.d) return _t("завтра ");
+    return new Date(t).toLocaleDateString(LOCALE, { timeZone: MSK, weekday: "short" }) + " ";
   }
   function esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -129,14 +131,14 @@
     const asia = open("tse") || open("hkex") || open("sse");
     const wd = parts(now, MSK).wd;
     const weekend = (wd === "Sat" || wd === "Sun") && !us && !eu && !asia;
-    if (weekend) return { title: "Выходные", text: "Фондовые биржи закрыты. Торгуется только крипта, поэтому движения бывают резкими при низкой ликвидности.", tone: "quiet" };
-    if (eu && us) return { title: "Европа + США", text: "Пересечение сессий Лондона и Нью-Йорка — самая высокая ликвидность и волатильность дня. Выходят ключевые данные США.", tone: "peak" };
-    if (us) return { title: "Сессия США", text: "Основной объём торгов в акциях и крипте. После закрытия Европы ликвидность постепенно снижается.", tone: "high" };
-    if (eu && asia) return { title: "Азия → Европа", text: "Европа открылась, Азия завершает день. Объёмы растут, часто задаётся направление на день.", tone: "high" };
-    if (eu) return { title: "Европейская сессия", text: "Ликвидность выше средней. Перед открытием США рынок часто ждёт американскую статистику.", tone: "high" };
-    if (asia) return { title: "Азиатская сессия", text: "Спокойнее по объёмам. Двигают новости из Китая и Японии, в крипте — азиатские биржи.", tone: "mid" };
-    if (st.nyse.state === "ext") return { title: `США: ${st.nyse.label}`, text: "Основная сессия закрыта, торги идут в расширенные часы с низкой ликвидностью. Реакция на отчёты компаний.", tone: "mid" };
-    return { title: "Между сессиями", text: "Основные биржи закрыты. Торгуются фьючерсы и крипта, ликвидность минимальная.", tone: "quiet" };
+    if (weekend) return { title: _t("Выходные"), text: _t("Фондовые биржи закрыты. Торгуется только крипта, поэтому движения бывают резкими при низкой ликвидности."), tone: "quiet" };
+    if (eu && us) return { title: _t("Европа + США"), text: _t("Пересечение сессий Лондона и Нью-Йорка — самая высокая ликвидность и волатильность дня. Выходят ключевые данные США."), tone: "peak" };
+    if (us) return { title: _t("Сессия США"), text: _t("Основной объём торгов в акциях и крипте. После закрытия Европы ликвидность постепенно снижается."), tone: "high" };
+    if (eu && asia) return { title: _t("Азия → Европа"), text: _t("Европа открылась, Азия завершает день. Объёмы растут, часто задаётся направление на день."), tone: "high" };
+    if (eu) return { title: _t("Европейская сессия"), text: _t("Ликвидность выше средней. Перед открытием США рынок часто ждёт американскую статистику."), tone: "high" };
+    if (asia) return { title: _t("Азиатская сессия"), text: _t("Спокойнее по объёмам. Двигают новости из Китая и Японии, в крипте — азиатские биржи."), tone: "mid" };
+    if (st.nyse.state === "ext") return { title: `${_t("США:")} ${st.nyse.label}`, text: _t("Основная сессия закрыта, торги идут в расширенные часы с низкой ликвидностью. Реакция на отчёты компаний."), tone: "mid" };
+    return { title: _t("Между сессиями"), text: _t("Основные биржи закрыты. Торгуются фьючерсы и крипта, ликвидность минимальная."), tone: "quiet" };
   }
 
   function nextEvent(st, now) {
@@ -144,9 +146,9 @@
     for (const mk of MARKETS) {
       const s = st[mk.id];
       if (s.state === "open") {
-        if (!best || s.until < best.t) best = { t: s.until, text: `закрытие: ${mk.name}` };
+        if (!best || s.until < best.t) best = { t: s.until, text: `${_t("закрытие:")} ${mk.name}` };
       } else if (s.next) {
-        if (!best || s.next < best.t) best = { t: s.next, text: `открытие: ${mk.name}` };
+        if (!best || s.next < best.t) best = { t: s.next, text: `${_t("открытие:")} ${mk.name}` };
       }
     }
     return best;
@@ -175,17 +177,17 @@
         return `<span class="seg ${x.kind} ${mk.region} ${live ? "live" : ""}" style="left:${pct(x.start).toFixed(2)}%;width:${(pct(x.end) - pct(x.start)).toFixed(2)}%"></span>`;
       }).join("");
       let stTxt, stCls;
-      if (s.state === "open") { stCls = "open"; stTxt = `открыта · до ${hm(s.until)}`; }
-      else if (s.state === "ext") { stCls = "ext"; stTxt = `${s.label} · до ${hm(s.until)}`; }
-      else if (s.state === "break") { stCls = "break"; stTxt = `перерыв · с ${hm(s.next)}`; }
-      else { stCls = "closed"; stTxt = s.next ? `откр. ${dayLabel(s.next, now)}${hm(s.next)}` : "закрыта"; }
+      if (s.state === "open") { stCls = "open"; stTxt = `${_t("открыта · до")} ${hm(s.until)}`; }
+      else if (s.state === "ext") { stCls = "ext"; stTxt = `${s.label} · ${_t("до")} ${hm(s.until)}`; }
+      else if (s.state === "break") { stCls = "break"; stTxt = `${_t("перерыв · с")} ${hm(s.next)}`; }
+      else { stCls = "closed"; stTxt = s.next ? `${_t("откр.")} ${dayLabel(s.next, now)}${hm(s.next)}` : _t("закрыта"); }
       rows += `<div class="s-row">
         <div class="s-name"><b>${mk.flag} ${esc(mk.name)}</b><span class="s-st ${stCls}">${esc(stTxt)}</span></div>
         <div class="s-track" aria-hidden="true">${segs}</div>
       </div>`;
     }
     rows += `<div class="s-row">
-      <div class="s-name"><b>₿ Крипта</b><span class="s-st open">24/7</span></div>
+      <div class="s-name"><b>₿ ${_t("Крипта")}</b><span class="s-st open">24/7</span></div>
       <div class="s-track" aria-hidden="true"><span class="seg main crypto live" style="left:0;width:100%"></span></div>
     </div>`;
 
@@ -193,10 +195,10 @@
 
     el.innerHTML = `
       <div class="sess-now glass tone-${sum.tone}">
-        <div class="sess-kicker"><span class="pulse"></span>Сейчас активно · ${hm(now)} МСК</div>
+        <div class="sess-kicker"><span class="pulse"></span>${_t("Сейчас активно ·")} ${hm(now)} ${_t("МСК")}</div>
         <div class="sess-title">${esc(sum.title)}</div>
         <p>${esc(sum.text)}</p>
-        ${nx ? `<div class="sess-next">Далее ${esc(nx.text)} · ${hm(nx.t)} · через ${dur(nx.t - now)}</div>` : ""}
+        ${nx ? `<div class="sess-next">${_t("Далее")} ${esc(nx.text)} · ${hm(nx.t)} · ${_t("через")} ${dur(nx.t - now)}</div>` : ""}
       </div>
       <div class="glass sess-card">
         <div class="s-grid" style="--nowf:${(nowPct / 100).toFixed(4)}">
@@ -205,10 +207,10 @@
           <div class="s-nowline" aria-hidden="true"><span>${hm(now)}</span></div>
         </div>
         <div class="s-legend">
-          <span><i class="lg asia"></i>Азия</span><span><i class="lg ru"></i>Россия</span><span><i class="lg eu"></i>Европа</span><span><i class="lg us"></i>США</span><span><i class="lg ext"></i>доп. сессии</span>
+          <span><i class="lg asia"></i>${_t("Азия")}</span><span><i class="lg ru"></i>${_t("Россия")}</span><span><i class="lg eu"></i>${_t("Европа")}</span><span><i class="lg us"></i>${_t("США")}</span><span><i class="lg ext"></i>${_t("доп. сессии")}</span>
         </div>
       </div>
-      <p class="hint">Шкала — сутки по московскому времени. Летнее и зимнее время учитываются автоматически, праздники — только для NYSE. У Мосбиржи бывают торги выходного дня, здесь они не показаны.</p>`;
+      <p class="hint">${_t("Шкала — сутки по московскому времени. Летнее и зимнее время учитываются автоматически, праздники — только для NYSE. У Мосбиржи бывают торги выходного дня, здесь они не показаны.")}</p>`;
   }
 
   window.MarketSessions = { render, MARKETS, status, summary };
