@@ -268,11 +268,13 @@
           <span class="side ${esc(t.side)}">${esc(t.side)}</span>
           <span class="sig-sym">${esc(t.symbol)}</span>
           ${t.kind === "contra" ? `<span class="badge contra">против толпы</span>` : ""}
+          ${t.kind === "breakout" ? `<span class="badge bo">пробой</span>` : ""}
+          ${t.status === "pending" ? `<span class="badge pend">⏳ лимит</span>` : ""}
           ${t.status === "tp1" ? `<span class="badge tp">TP1 ✓</span>` : ""}
           <span class="sig-r"><span class="r ${rCls(t.r_open)}">${fmtR(t.r_open)}</span><small>${ago(t.opened)}</small></span>
         </div>
         <div class="levels">
-          <div class="lv"><div class="l">Вход</div><div class="v">${fmtPrice(t.entry)}</div></div>
+          <div class="lv"><div class="l">${t.status === "pending" ? "Лимит" : "Вход"}</div><div class="v">${fmtPrice(t.entry)}</div></div>
           <div class="lv sl"><div class="l">Стоп</div><div class="v">${fmtPrice(t.sl)}</div></div>
           <div class="lv tp"><div class="l">TP1</div><div class="v">${fmtPrice(t.tp1)}</div></div>
           <div class="lv"><div class="l">Цена</div><div class="v">${fmtPrice(t.price)}</div></div>
@@ -282,13 +284,28 @@
       </article>`;
     }
 
+    // на радаре: сетапы, которые готовятся к пробою (v4)
+    const radar = d.radar || [];
+    if (d.strategy === "breakout" || d.strategy === "both") {
+      h += `<div class="section-title">На радаре <small>готовятся пробои</small></div>`;
+      if (!radar.length) h += `<div class="glass card empty" style="padding:18px">Сформированных сетапов у уровня сейчас нет</div>`;
+      else {
+        h += `<div class="glass list">` + radar.slice(0, 8).map((r) => `<div class="closed-row radar-row" data-sym="${esc(r.symbol)}">
+            <span class="side ${esc(r.side)}">${esc(r.side)}</span>
+            <span class="n">${esc(r.symbol)} · уровень ${fmtPrice(r.level)}<small>${esc(r.notes || "")}</small></span>
+            <span class="r">${Math.round(r.score)}<small>${r.price ? `${((r.level / r.price - 1) * 100).toFixed(1)}%` : ""}</small></span>
+          </div>`).join("") + `</div>`;
+        h += `<p class="hint">Паттерн сформирован, цена у уровня. Сигнал на вход придёт, только если свеча закроется за уровнем с объёмом и сила сетапа ≥ порога. Заранее не входим.</p>`;
+      }
+    }
+
     // закрытые
     const closed = (d.closed || []).slice(0, 15);
     if (closed.length) {
       h += `<div class="section-title">Закрытые <small>последние ${closed.length}</small></div><div class="glass list">`;
       h += closed.map((t) => `<div class="closed-row">
           <span class="side ${esc(t.side)}">${esc(t.side)}</span>
-          <span class="n">${esc(t.symbol)}${t.kind === "contra" ? " · против толпы" : ""}<small>${EXIT[t.exit_reason] || esc(t.exit_reason)} · ${t.closed ? fmtTime(t.closed, true) : ""}</small></span>
+          <span class="n">${esc(t.symbol)}${t.kind === "contra" ? " · против толпы" : t.kind === "breakout" ? " · пробой" : ""}<small>${EXIT[t.exit_reason] || esc(t.exit_reason)} · ${t.closed ? fmtTime(t.closed, true) : ""}</small></span>
           <span class="r ${rCls(t.r_gross)}">${fmtR(t.r_gross)}</span>
         </div>`).join("");
       h += `</div>`;
@@ -329,7 +346,7 @@
     const ct = box.querySelector(".crowd-toggle");
     if (ct) ct.addEventListener("click", () => { state.crowdAll = !state.crowdAll; haptic(); renderSignals(); });
     box.querySelectorAll("#sig-period button").forEach((b) => b.addEventListener("click", () => { state.sigPeriod = b.dataset.p; haptic(); renderSignals(); }));
-    box.querySelectorAll(".sig-card[data-sym]").forEach((c) => c.addEventListener("click", () => {
+    box.querySelectorAll(".sig-card[data-sym], .radar-row[data-sym]").forEach((c) => c.addEventListener("click", () => {
       state.asset = c.dataset.sym; state.interval = "60"; switchTab("charts");
     }));
   }
