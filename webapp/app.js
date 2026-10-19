@@ -41,7 +41,7 @@
   const BIAS = { bullish: _t("позитив"), bearish: _t("негатив"), mixed: _t("неоднозначно") };
 
   const state = { data: null, sig: null, sigPeriod: "d30", tab: "overview", newsFilter: _t("Все"), asset: "BTC", interval: "240", rsi: true, chartKey: "",
-    mode: "simple", live: {}, global: null };
+    mode: "simple", live: {}, global: null, newsView: "news", xGroup: "all" };
   // режим «Просто / Профи» запоминаем на устройстве
   let modeChosen = false;
   try { const m = localStorage.getItem("amq-mode"); if (m === "pro" || m === "simple") { state.mode = m; modeChosen = true; } } catch (e) { /* приватный режим */ }
@@ -545,16 +545,31 @@
   const ICON_IMPACT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>';
   const ICON_WATCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>';
 
+  // ---------------------------------------------------------------- новости: три ленты
+  const NEWS_VIEWS = [["news", "Новости"], ["x", "Крипто X"], ["dex", "Perp DEX"]];
+  function newsSwitch() {
+    const idx = Math.max(0, NEWS_VIEWS.findIndex(([k]) => k === state.newsView));
+    return `<div class="segmented glass news-seg" id="news-view" style="--n:3;--i:${idx}"><span class="thumb-glass" aria-hidden="true"></span>${
+      NEWS_VIEWS.map(([k, l]) => `<button class="${k === state.newsView ? "active" : ""}" data-v="${k}" role="radio" aria-checked="${k === state.newsView}">${_t(l)}</button>`).join("")}</div>`;
+  }
+  function bindNewsSwitch(box) {
+    box.querySelectorAll("#news-view button").forEach((b) => b.addEventListener("click", () => {
+      state.newsView = b.dataset.v; haptic(); renderNews(); window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+  }
   function renderNews() {
+    if (state.newsView === "x") return renderXFeed();
+    if (state.newsView === "dex") return renderDex();
     const news = state.data.news || [];
     const box = $("#tab-news");
     if (!news.length) {
-      box.innerHTML = `<div class="glass card empty">${_t("Новости появятся после ближайшего дайджеста в 08:00 или 16:00 МСК.")}</div>`;
+      box.innerHTML = newsSwitch() + `<div class="glass card empty">${_t("Новости появятся после ближайшего дайджеста в 08:00 или 16:00 МСК.")}</div>`;
+      bindNewsSwitch(box);
       return;
     }
     const themes = [_t("Все"), ...new Set(news.flatMap((n) => n.themes || []))];
     if (!themes.includes(state.newsFilter)) state.newsFilter = _t("Все");
-    let h = `<div class="chips">${themes.map((t) => `<button class="chip glass ${t === state.newsFilter ? "active" : ""}" data-f="${esc(t)}">${esc(_t(t))}</button>`).join("")}</div>`;
+    let h = newsSwitch() + `<div class="chips">${themes.map((t) => `<button class="chip glass ${t === state.newsFilter ? "active" : ""}" data-f="${esc(t)}">${esc(_t(t))}</button>`).join("")}</div>`;
     if (state.data.news_updated) h += `<div class="issue">${_t("Выпуск")} ${fmtTime(state.data.news_updated, true)} ${_t("МСК ·")} ${news.length} ${news.length < 5 ? _t("события") : _t("событий")}</div>`;
 
     const ru = I18.lang === "ru";
@@ -590,6 +605,110 @@
     box.innerHTML = h;
     box.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.newsFilter = c.dataset.f; haptic(); renderNews(); }));
     box.querySelectorAll(".links button").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
+    bindNewsSwitch(box);
+  }
+
+  // ---------------------------------------------------------------- Крипто X и Perp DEX
+  const SENT = { bullish: ["позитив", "bullish"], bearish: ["негатив", "bearish"], neutral: ["нейтрально", "mixed"] };
+  const GROUP = { leaders: "Лидеры мнений", protocols: "Проекты", dex: "Perp DEX" };
+  const fmtK = (v) => (v == null ? "" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(1) + "K" : String(v));
+  const fmtBig = (v) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${Math.round(v / 1e3)}K`);
+  function trPost(p, k) {
+    if (I18.lang === "ru") return p[k] || "";
+    const t = (p.i18n || {})[I18.lang] || (p.i18n || {}).en;
+    return (t && t[k]) || "";
+  }
+  function trSummary(sec) {
+    if (!sec) return "";
+    if (I18.lang === "ru") return sec.summary || "";
+    const m = sec.summary_i18n || {};
+    return m[I18.lang] || m.en || "";
+  }
+  function postCard(p) {
+    const nb = state.mode === "simple";
+    const sum = trPost(p, "summary"), why = trPost(p, "why");
+    const sent = SENT[p.sentiment] || SENT.neutral;
+    const score = Math.max(0, Math.min(10, p.score || 0));
+    const ini = esc((p.name || p.handle || "?").trim().slice(0, 1).toUpperCase());
+    return `<article class="xpost glass" data-url="${esc(p.url)}">
+      <div class="xp-head">
+        <span class="xp-ava">${p.avatar ? `<img src="${esc(p.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}<i>${ini}</i></span>
+        <span class="xp-who"><b>${esc(p.name || p.handle)}${p.verified ? ' <svg class="xp-ok" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.4 2.1 3.2-.3.9 3 2.7 1.8-1 3 1 3-2.7 1.8-.9 3-3.2-.3L12 22l-2.4-2.1-3.2.3-.9-3L2.8 15.4l1-3-1-3L5.5 7.6l.9-3 3.2.3z" fill="currentColor"/><path d="m8 12.3 2.6 2.6L16 9.5" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/></svg>' : ""}</b>
+          <small>@${esc(p.handle)} · ${ago(p.ts)}</small></span>
+        <span class="bias ${sent[1]}">${_t(sent[0])}</span>
+      </div>
+      ${sum ? `<p class="xp-sum">${esc(sum)}</p>` : ""}
+      ${why ? `<div class="insight impact ${nb ? "nb-why" : ""}"><b>${ICON_IMPACT}${nb ? _t("Что это значит для рынка") : _t("Влияние на рынки")}</b>${esc(why)}</div>` : ""}
+      ${nb ? `<details class="xp-orig"><summary>${_t("Оригинал поста")}</summary><p>${esc(p.text)}</p></details>`
+           : `<blockquote class="xp-text">${esc(p.text)}</blockquote>`}
+      <div class="xp-foot">
+        <span class="xp-score" title="${_t("Влияние")}">${_t("Влияние")} <i style="--w:${score * 10}%"></i><b>${score}/10</b></span>
+        <span class="xp-metrics pro-only">♥ ${fmtK(p.likes)} · ↻ ${fmtK(p.rts)}${p.views ? ` · 👁 ${fmtK(p.views)}` : ""}</span>
+        <button class="xp-open">${_t("Открыть в X")} ↗</button>
+      </div>
+      ${p.assets ? `<div class="xp-assets">${esc(p.assets)}</div>` : ""}
+    </article>`;
+  }
+  function bindPosts(box) {
+    box.querySelectorAll(".xpost .xp-open").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); openLink(b.closest(".xpost").dataset.url); }));
+    box.querySelectorAll(".dex-news [data-url]").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
+  }
+  function emptyX(sec) {
+    return `<div class="glass card empty">${(!sec || !sec.provider) && !((sec && sec.posts) || []).length
+      ? _t("Лента постов из X появится после подключения источника данных.")
+      : _t("За последние сутки значимых постов нет — бот показывает только то, что может повлиять на рынок.")}</div>`;
+  }
+
+  function renderXFeed() {
+    const box = $("#tab-news");
+    const sec = state.data.cryptox || null;
+    const posts = (sec && sec.posts) || [];
+    const groups = ["all", "leaders", "protocols"];
+    if (!groups.includes(state.xGroup)) state.xGroup = "all";
+    let h = newsSwitch();
+    h += `<div class="x-intro glass"><div class="k">${_t("О чём говорят в X")}</div>
+      <p>${esc(trSummary(sec)) || _t("Посты крупнейших людей и проектов крипторынка: только то, что может повлиять на цены или показывает настроение.")}</p>
+      ${sec && sec.updated ? `<small>${_t("обновлено")} ${ago(sec.updated)}</small>` : ""}</div>`;
+    h += `<div class="chips">${groups.map((g) => `<button class="chip glass ${g === state.xGroup ? "active" : ""}" data-g="${g}">${g === "all" ? _t("Все") : _t(GROUP[g])}</button>`).join("")}</div>`;
+    const list = posts.filter((p) => state.xGroup === "all" || p.group === state.xGroup);
+    h += list.length ? list.map(postCard).join("") : emptyX(sec);
+    h += `<p class="hint">${_t("Отбор: посты с заметной реакцией, ИИ оставляет только влияющие на рынок или показывающие настроение. Не финансовый совет.")}</p>`;
+    box.innerHTML = h;
+    bindNewsSwitch(box);
+    bindPosts(box);
+    box.querySelectorAll(".chip[data-g]").forEach((c) => c.addEventListener("click", () => { state.xGroup = c.dataset.g; haptic(); renderXFeed(); }));
+  }
+
+  function renderDex() {
+    const box = $("#tab-news");
+    const d = state.data.dex || {};
+    const nb = state.mode === "simple";
+    let h = newsSwitch();
+    h += `<div class="x-intro glass"><div class="k">${_t("Рынок perp DEX")}</div>
+      <p>${esc(trSummary(d)) || _t("Децентрализованные биржи бессрочных фьючерсов: объёмы, новости и посты Hyperliquid, dYdX, GMX, Aster, Lighter и других.")}</p>
+      ${nb ? `<p class="explain">${_t("Perp DEX — биржи, где торгуют фьючерсами с плечом прямо из своего кошелька, без регистрации на централизованной бирже. Рост их объёмов — признак активности трейдеров.")}</p>` : ""}</div>`;
+    const v = d.volumes;
+    if (v && (v.top || []).length) {
+      const max = Math.max(...v.top.map((r) => r.vol24h));
+      h += `<div class="section-title">${_t("Объём торгов за 24ч")} <small>${esc(v.source || "DefiLlama")}</small></div>
+        <div class="dex-vol glass"><div class="dv-total"><b>${fmtBig(v.total24h)}</b>${v.change_1d != null ? chg(Number(v.change_1d)) : ""}<span>${_t("все perp DEX")}</span></div>
+        ${v.top.slice(0, nb ? 5 : 10).map((r, i) => `<div class="dv-row"><span class="dv-n">${i + 1}. ${esc(r.name)}</span>
+          <span class="dv-bar"><i style="width:${(r.vol24h / max) * 100}%"></i></span>
+          <span class="dv-v">${fmtBig(r.vol24h)}${r.share != null ? `<small>${r.share.toFixed(1)}%</small>` : ""}</span>
+          ${!nb && r.change_1d != null ? `<span class="dv-c">${chg(Number(r.change_1d))}</span>` : ""}</div>`).join("")}</div>`;
+    }
+    const posts = d.posts || [];
+    h += `<div class="section-title">${_t("Посты бирж и команд")}</div>`;
+    h += posts.length ? posts.map(postCard).join("") : emptyX(state.data.cryptox);
+    const news = d.news || [];
+    if (news.length) {
+      h += `<div class="section-title">${_t("Новости рынка perp DEX")}</div><div class="glass list dex-news">` +
+        news.map((n) => `<button class="dn-row" data-url="${esc(n.link)}"><span>${esc(n.title)}</span><small>${esc(n.outlet || "")}${n.outlet ? " · " : ""}${ago(n.ts)}</small></button>`).join("") + `</div>`;
+    }
+    h += `<p class="hint">${_t("Объёмы — DefiLlama, обновляются каждый час. Не финансовый совет.")}</p>`;
+    box.innerHTML = h;
+    bindNewsSwitch(box);
+    bindPosts(box);
   }
 
   // ---------------------------------------------------------------- итоги событий

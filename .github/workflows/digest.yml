@@ -57,6 +57,9 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
+          TWITTERAPI_IO_KEY: ${{ secrets.TWITTERAPI_IO_KEY }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          X_REFRESH_MIN: ${{ vars.X_REFRESH_MIN }}
         run: python bot.py --mode ${{ steps.mode.outputs.mode }} --export site
 
       # Публикация мини-приложения. Если GitHub Pages ещё не включён — дайджест всё равно уходит.

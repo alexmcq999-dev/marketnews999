@@ -824,6 +824,18 @@ def previous_news() -> dict:
     return {k: d.get(k) for k in ("news", "mood", "mood_i18n", "news_updated", "news_since") if k in d}
 
 
+def social_sections(now: datetime, general_items: list[dict] | None = None) -> dict:
+    """Крипто X и Perp DEX (src: cryptox.py). Ошибка не должна ломать дайджест."""
+    try:
+        import cryptox
+        return cryptox.build(now, previous_app(), llm_json if llm_config() else None,
+                             general_items=general_items, with_news=general_items is not None)
+    except Exception as e:  # noqa: BLE001
+        print(f"[cryptox] {type(e).__name__}: {e}", file=sys.stderr)
+        d = previous_app()
+        return {k: d[k] for k in ("cryptox", "dex") if k in d}
+
+
 def calendar_with_results(now: datetime) -> list[dict]:
     """Календарь недели + итоги прошедших событий (факт, тон, реакция рынка за час)."""
     import event_results as er
@@ -983,7 +995,7 @@ def main() -> None:
 
     if args.mode == "data":
         payload = {"markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT,
-                   "calendar": calendar_with_results(now), **previous_news()}
+                   "calendar": calendar_with_results(now), **previous_news(), **social_sections(now)}
         if args.export:
             export_site(args.export, now, payload)
         return
@@ -1008,6 +1020,7 @@ def main() -> None:
             "markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT, "calendar": LAST.get("calendar", []),
             "news": news_export(chosen, ai, LAST.get("translations")), "mood": (ai or {}).get("mood", ""),
             "mood_i18n": (ai or {}).get("mood_i18n") or {},
+            **social_sections(now, news),
             "news_updated": now.isoformat(), "news_since": since.isoformat()})
 
     if args.dry_run:
