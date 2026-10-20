@@ -995,3 +995,15 @@ html.no-tg .pc { padding-top: env(safe-area-inset-top, 0px); }
 #login .login-btn[hidden] { display: none; }
 .pre[hidden] { display: none; }
 .pc-fit { position: absolute; z-index: 4; right: 70px; top: 66px; display: flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,.18); border-radius: 99px; padding: 5px 10px; font-size: 12px; font-weight: 700; color: var(--text); background: rgba(20,20,20,.9); cursor: pointer; }
+
+/* ================================================================ логотип «Импульс» */
+.pre-mark { width: 172px; height: auto; }
+.pre-mark .pm-line { stroke-dasharray: 100; stroke-dashoffset: 100; animation: pm-draw .7s .1s cubic-bezier(.6, 0, .2, 1) forwards; }
+.pre-mark .pm-up { stroke-dasharray: 100; stroke-dashoffset: 100; animation: pm-draw .25s .8s ease-out forwards; }
+.pre-mark .pm-dot { transform-box: fill-box; transform-origin: center; transform: scale(0);
+  animation: pm-pop .4s 1s cubic-bezier(.3, 1.6, .5, 1) forwards, pm-glow 2.2s 1.4s ease-in-out infinite; }
+@keyframes pm-draw { to { stroke-dashoffset: 0; } }
+@keyframes pm-pop { to { transform: scale(1); } }
+@keyframes pm-glow { 50% { filter: drop-shadow(0 0 14px rgba(245, 196, 81, .85)); } }
+.ambient .wm { color: rgba(255, 255, 255, .06); fill: none; stroke: none; filter: none; }
+@media (prefers-reduced-motion: reduce) { .pre-mark .pm-line, .pre-mark .pm-up { stroke-dashoffset: 0; } .pre-mark .pm-dot { transform: none; } }

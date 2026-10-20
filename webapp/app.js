@@ -12,7 +12,7 @@
   const loc = (s) => (I18.lang === "ru" || !s || !CYR.test(s) ? s || "" : (_t(s) !== s ? _t(s) : ""));
   const locList = (s) => (s || "").split(",").map((x) => loc(x.trim())).filter(Boolean).join(", ");
   I18.translateDom(document.body);
-  // прелоадер: показываем минимум 1.2 с (чтобы логотип успел «вдохнуть»), максимум 7 с
+  // прелоадер: показываем минимум 1.5 с (чтобы логотип успел «вдохнуть»), максимум 7 с
   const T0 = Date.now();
   let preHidden = false;
   function hidePreloader() {
@@ -24,7 +24,7 @@
       p.classList.add("done");
       // после затухания прячем прелоадер совсем (display: none): его бесконечные анимации иначе продолжают грузить видеочип
       setTimeout(() => { if (p.classList.contains("done")) p.hidden = true; }, 800);
-    }, Math.max(0, 1200 - (Date.now() - T0)));
+    }, Math.max(0, 1500 - (Date.now() - T0)));
   }
   setTimeout(hidePreloader, 7000);
   const TZ = "Europe/Moscow";
