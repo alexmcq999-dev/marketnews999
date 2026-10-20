@@ -835,7 +835,7 @@ def send_push(title: dict, body: dict, path: str = "") -> None:
                           headers={"Authorization": f"Key {key}", "Content-Type": "application/json"},
                           json={"app_id": app_id, "included_segments": [os.getenv("ONESIGNAL_SEGMENT") or "Total Subscriptions"],
                                 "headings": {k: v for k, v in title.items() if v}, "contents": {k: v for k, v in body.items() if v},
-                                "url": url, "web_push_topic": "digest", "ttl": 6 * 3600})
+                                "url": url, "web_push_topic": "digest", "ttl": 6 * 3600, "priority": 10})
         print(f"[push] {r.status_code} {r.text[:120]}", file=sys.stderr)
     except Exception as e:  # noqa: BLE001
         print(f"[push] {type(e).__name__}: {e}", file=sys.stderr)
