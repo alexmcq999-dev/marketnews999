@@ -165,6 +165,7 @@
         return { withdraw: !!r.enableWithdrawals, trade: !!(r.enableFutures || r.enableSpotAndMarginTrading || r.enableMargin) };
       } catch (e) { return {}; }
     },
+    async equity(c) { const r = await this.req(c, "/fapi/v2/account", {}); return +r.totalMarginBalance || +r.totalWalletBalance || null; },
     async sync(c, from, to, progress) {
       try { const t = await getJSON("https://fapi.binance.com/fapi/v1/time"); c._off = t.serverTime - Date.now(); } catch (e) { /* noop */ }
       const income = [];
@@ -220,6 +221,12 @@
       const any = (a) => Array.isArray(a) && a.length > 0;
       return { withdraw: any(perm.Wallet) && perm.Wallet.some((x) => /Withdraw/i.test(x)), trade: r.readOnly === 0 && (any(perm.ContractTrade) || any(perm.Spot) || any(perm.Derivatives)) };
     },
+    async equity(c) {
+      for (const accountType of ["UNIFIED", "CONTRACT"]) {
+        try { const r = await this.req(c, "/v5/account/wallet-balance", { accountType }); const e = +((r.list || [])[0] || {}).totalEquity; if (e) return e; } catch (e) { /* другой тип аккаунта */ }
+      }
+      return null;
+    },
     async sync(c, from, to, progress) {
       await this.time(c);
       const out = [], ws = windows(from, to, 7 * DAY);
@@ -263,6 +270,7 @@
       const perm = String((r[0] || {}).perm || "");
       return { withdraw: /withdraw/.test(perm), trade: /trade/.test(perm) };
     },
+    async equity(c) { const r = await this.req(c, "/api/v5/account/balance", {}); return +(r[0] || {}).totalEq || null; },
     async sync(c, from, to, progress) {
       await this.time(c);
       let ct = {};
@@ -313,6 +321,7 @@
       await this.req(c, "/openApi/swap/v2/user/balance", {});
       return {};
     },
+    async equity(c) { const r = await this.req(c, "/openApi/swap/v2/user/balance", {}); const b = (r && (r.balance || r)) || {}; return +(b.equity || b.balance) || null; },
     async sync(c, from, to, progress) {
       const inc = [];
       for (const [a, b] of windows(from, to, 7 * DAY)) {
@@ -350,6 +359,7 @@
       await this.post({ type: "clearinghouseState", user: c.address });
       return {};
     },
+    async equity(c) { const r = await this.post({ type: "clearinghouseState", user: c.address }); return +((r || {}).marginSummary || {}).accountValue || null; },
     async sync(c, from, to, progress) {
       const fills = [];
       let s = from;
@@ -502,6 +512,7 @@
 
   // ================================================================ состояние
   const S = { open: false, conns: [], trades: [], notes: {}, period: 30, exFilter: "all", syncing: false, demo: false, status: {}, view: "main", expanded: null };
+  try { if (localStorage.getItem("amq-jr-unit") === "pct") S.calUnit = "pct"; } catch (e) { /* noop */ }
   try { const raw = localStorage.getItem("amq-jr-period"); const p = +raw; if (raw !== null && [7, 30, 90, 0].includes(p)) S.period = p; } catch (e) { /* noop */ }
 
   async function loadState() {
@@ -528,6 +539,7 @@
         list.forEach((t) => { t.conn = c.id; });
         S.trades = S.trades.filter((t) => t.conn !== c.id).concat(list);
         c.lastSync = Date.now(); c.count = list.length; c.error = null;
+        try { if (EX[c.ex].equity) c.equity = await EX[c.ex].equity(conn); } catch (e) { /* баланс не обязателен */ }
         S.status[c.id] = { ok: true };
       } catch (e) {
         c.error = String(e.message || e).slice(0, 160);
@@ -600,6 +612,7 @@
     else if (act === "more") { S.showAll = true; renderTrades(); }
     else if (act === "view") { S.view = v; S.expanded = null; S.showAll = false; render(); }
     else if (act === "cal-month") { const d = calMonth(); S.calMonth = new Date(d.getFullYear(), d.getMonth() + +v, 1); S.calDay = null; render(); }
+    else if (act === "cal-unit") { S.calUnit = v; try { localStorage.setItem("amq-jr-unit", v); } catch (er) { /* noop */ } render(); }
     else if (act === "cal-day") { S.calDay = S.calDay === v ? null : v; S.expanded = null; render(); }
   }
 
@@ -689,6 +702,19 @@
   }
 
   // ---------------------------------------------------------------- календарь PnL по дням
+  // «N сделок» с правильным окончанием
+  function tradesWord(n) {
+    const L = I18.lang;
+    if (L === "ru") { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? "сделка" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "сделки" : "сделок"; }
+    return ({ en: n === 1 ? "trade" : "trades", es: n === 1 ? "operación" : "operaciones", fr: n === 1 ? "trade" : "trades", ko: "건", zh: "笔" })[L] || "trades";
+  }
+  // база для процентов: текущий депозит подключённых бирж (или объём сделок, если баланса нет)
+  function equityBase() {
+    if (S.demo) return 5000;
+    const cs = S.conns.filter((c) => S.exFilter === "all" || c.ex === S.exFilter);
+    const e = cs.reduce((a, c) => a + (+c.equity || 0), 0);
+    return e > 0 ? e : null;
+  }
   const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   function calSource() {
     const src = S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades;
@@ -701,6 +727,13 @@
     const d = new Date(last);
     return (S.calMonth = new Date(d.getFullYear(), d.getMonth(), 1));
   }
+  function fmtCal(v, notional) {
+    if (S.calUnit !== "pct") return fmtShort(v);
+    const base = equityBase() || notional;
+    if (!base) return "—";
+    const p = (v / base) * 100, a = Math.abs(p);
+    return `${p < 0 ? "−" : "+"}${a >= 10 ? a.toFixed(0) : a >= 1 ? a.toFixed(1) : a.toFixed(2)}%`;
+  }
   function fmtShort(v) {
     const a = Math.abs(v), sg = v < 0 ? "−" : "+";
     return a >= 1e5 ? `${sg}$${(a / 1e3).toFixed(0)}K` : a >= 1e3 ? `${sg}$${(a / 1e3).toFixed(1)}K` : `${sg}$${a >= 100 ? a.toFixed(0) : a.toFixed(a >= 10 ? 0 : 1)}`;
@@ -708,12 +741,12 @@
   function calendarHtml() {
     const src = calSource();
     const byDay = new Map();
-    src.forEach((t) => { const k = dayKey(t.closeT); const g = byDay.get(k) || { pnl: 0, n: 0, w: 0, list: [] }; g.pnl += t.pnl; g.n++; if (t.pnl > 0) g.w++; g.list.push(t); byDay.set(k, g); });
+    src.forEach((t) => { const k = dayKey(t.closeT); const g = byDay.get(k) || { pnl: 0, n: 0, w: 0, vol: 0, list: [] }; g.pnl += t.pnl; g.vol += t.notional || 0; g.n++; if (t.pnl > 0) g.w++; g.list.push(t); byDay.set(k, g); });
     const m0 = calMonth(), y = m0.getFullYear(), mo = m0.getMonth();
     const days = new Date(y, mo + 1, 0).getDate(), lead = (new Date(y, mo, 1).getDay() + 6) % 7;
     const inMonth = [...byDay.entries()].filter(([k]) => k.startsWith(`${y}-${String(mo + 1).padStart(2, "0")}`));
     const mx = Math.max(1, ...inMonth.map(([, g]) => Math.abs(g.pnl)));
-    const mPnl = inMonth.reduce((a, [, g]) => a + g.pnl, 0), mTrades = inMonth.reduce((a, [, g]) => a + g.n, 0);
+    const mPnl = inMonth.reduce((a, [, g]) => a + g.pnl, 0), mTrades = inMonth.reduce((a, [, g]) => a + g.n, 0), mVol = inMonth.reduce((a, [, g]) => a + g.vol, 0);
     const green = inMonth.filter(([, g]) => g.pnl > 0).length, red = inMonth.filter(([, g]) => g.pnl < 0).length;
     const best = inMonth.reduce((b, e) => (!b || e[1].pnl > b[1].pnl ? e : b), null);
     const todayK = dayKey(Date.now());
@@ -724,7 +757,7 @@
     const wd = [_t("Пн"), _t("Вт"), _t("Ср"), _t("Чт"), _t("Пт"), _t("Сб"), _t("Вс")];
     let cells = wd.map((d) => `<span class="jr-cal-wd">${esc(d)}</span>`).join("") + `<span class="jr-cal-wd wk">${esc(_t("Нед"))}</span>`;
     const total = Math.ceil((lead + days) / 7) * 7;
-    let wk = 0, wkN = 0;
+    let wk = 0, wkN = 0, wkV = 0;
     for (let i = 0; i < total; i++) {
       const dn = i - lead + 1;
       if (dn < 1 || dn > days) cells += `<span class="jr-cal-c out"></span>`;
@@ -732,24 +765,26 @@
         const k = `${y}-${String(mo + 1).padStart(2, "0")}-${String(dn).padStart(2, "0")}`, g = byDay.get(k);
         // интенсивность цвета — по величине результата дня относительно лучшего/худшего дня месяца
         const a = g ? 0.22 + 0.78 * Math.min(1, Math.abs(g.pnl) / mx) : 0;
-        if (g) { wk += g.pnl; wkN += g.n; }
-        const dots = g ? `<em class="jr-dots" aria-label="${g.n}">${"<u></u>".repeat(Math.min(g.n, 4))}${g.n > 4 ? "<span>+</span>" : ""}</em>` : "";
+        if (g) { wk += g.pnl; wkN += g.n; wkV += g.vol; }
+        const dots = g ? `<em class="jr-cnt"><span class="full">${g.n} ${esc(tradesWord(g.n))}</span><span class="short">${g.n} ${esc(_t("сд."))}</span></em>` : "";
         cells += `<button class="jr-cal-c ${g ? (g.pnl >= 0 ? "pos" : "neg") : "none"} ${k === todayK ? "today" : ""} ${S.calDay === k ? "sel" : ""}" style="${g ? `--k:${Math.round(a * 100)}%` : ""}" ${g ? `data-j="cal-day" data-v="${k}"` : "disabled"}>
-          <i>${dn}</i>${g ? `<b>${fmtShort(g.pnl)}</b>${dots}` : ""}</button>`;
+          <i>${dn}</i>${g ? `<b>${fmtCal(g.pnl, g.vol)}</b>${dots}` : ""}</button>`;
       }
       if (i % 7 === 6) {
-        cells += `<span class="jr-cal-c wk ${wkN ? (wk >= 0 ? "up" : "down") : ""}">${wkN ? `<b>${fmtShort(wk)}</b><small>${wkN}</small>` : ""}</span>`;
-        wk = 0; wkN = 0;
+        cells += `<span class="jr-cal-c wk ${wkN ? (wk >= 0 ? "up" : "down") : ""}">${wkN ? `<b>${fmtCal(wk, wkV)}</b><small><span class="full">${wkN} ${esc(tradesWord(wkN))}</span><span class="short">${wkN} ${esc(_t("сд."))}</span></small>` : ""}</span>`;
+        wk = 0; wkN = 0; wkV = 0;
       }
     }
     let h = `<div class="jr-cal glass">
       <div class="jr-cal-h"><button class="pc-x sm" data-j="cal-month" data-v="-1" ${canPrev ? "" : "disabled"} aria-label="${esc(_t("Назад"))}">‹</button>
         <b>${esc(title.charAt(0).toUpperCase() + title.slice(1))}</b>
         <button class="pc-x sm" data-j="cal-month" data-v="1" ${canNext ? "" : "disabled"} aria-label="${esc(_t("Вперёд"))}">›</button></div>
-      <div class="jr-cal-sum"><div><span>${esc(_t("Итог"))}</span><b class="${cls(mPnl)}">${fmtUsd(mPnl)}</b></div>
+      <div class="jr-unit" role="radiogroup" aria-label="${esc(_t("Единицы"))}"><button class="${S.calUnit !== "pct" ? "on" : ""}" data-j="cal-unit" data-v="usd">$</button><button class="${S.calUnit === "pct" ? "on" : ""}" data-j="cal-unit" data-v="pct">%</button>
+        <small>${S.calUnit === "pct" ? esc(equityBase() ? `${_t("от депозита")} ${fmtUsd(equityBase(), false)}` : _t("от объёма сделок")) : ""}</small></div>
+      <div class="jr-cal-sum"><div><span>${esc(_t("Итог"))}</span><b class="${cls(mPnl)}">${S.calUnit === "pct" ? fmtCal(mPnl, mVol) : fmtUsd(mPnl)}</b></div>
         <div><span>${esc(_t("Дни"))}</span><b><em class="up">${green}</em> / <em class="down">${red}</em></b></div>
         <div><span>${esc(_t("Сделок"))}</span><b>${mTrades}</b></div>
-        <div><span>${esc(_t("Лучший"))}</span><b class="up">${best && best[1].pnl > 0 ? fmtUsd(best[1].pnl) : "—"}</b></div></div>
+        <div><span>${esc(_t("Лучший"))}</span><b class="up">${best && best[1].pnl > 0 ? (S.calUnit === "pct" ? fmtCal(best[1].pnl, best[1].vol) : fmtUsd(best[1].pnl)) : "—"}</b></div></div>
       <div class="jr-cal-grid">${cells}</div>
     </div>`;
     if (S.calDay && byDay.get(S.calDay)) {
@@ -758,7 +793,7 @@
       h += `<div class="section-title">${esc(d.toLocaleDateString(I18.locale, { weekday: "long", day: "numeric", month: "long" }))} <small class="${cls(g.pnl)}">${fmtUsd(g.pnl)} · ${g.n} · ${Math.round((g.w / g.n) * 100)}%</small></div>`;
       S._list = g.list.slice().sort((a, b) => b.closeT - a.closeT);
     } else {
-      h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки. Точки — число сделок, в колонке «Нед» — итог недели."))}</p>`;
+      h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки. В колонке «Нед» — итог недели."))}</p>`;
       S._list = [];
     }
     h += `<div class="jr-trades" id="jr-trades"></div>`;

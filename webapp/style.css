@@ -1144,9 +1144,8 @@ html.no-tg .jr { padding-top: env(safe-area-inset-top, 0px); }
 .jr-cal-c i { align-self: flex-start; font-style: normal; font-size: 10px; font-weight: 600; color: var(--text-3); line-height: 1; }
 .jr-cal-c.pos i, .jr-cal-c.neg i { color: rgba(255,255,255,.7); }
 .jr-cal-c b { font-size: 10.5px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
-.jr-dots { display: flex; gap: 2px; align-items: center; height: 5px; font-style: normal; }
-.jr-dots u { display: block; width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.75); }
-.jr-dots span { font-size: 8px; line-height: 1; color: rgba(255,255,255,.75); font-weight: 700; }
+.jr-cnt { font-style: normal; font-size: 8.5px; font-weight: 600; line-height: 1; color: rgba(255,255,255,.72); white-space: nowrap; letter-spacing: -.01em; }
+.jr-cal .full { display: none; } .jr-cal .short { display: inline; }
 .jr-cal-c.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); }
 .jr-cal-c.pos.today, .jr-cal-c.neg.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.8), 0 6px 14px -8px color-mix(in srgb, var(--c) var(--k), transparent); }
 .jr-cal-c.sel { box-shadow: inset 0 0 0 2px #f5c451, 0 0 0 3px rgba(245,196,81,.18) !important; transform: translateY(-1px); }
@@ -1154,3 +1153,18 @@ html.no-tg .jr { padding-top: env(safe-area-inset-top, 0px); }
 .jr-cal-c.wk b { font-size: 10px; text-shadow: none; } .jr-cal-c.wk.up b { color: var(--up); } .jr-cal-c.wk.down b { color: var(--down); }
 .jr-cal-c.wk small { font-size: 8.5px; color: var(--text-3); line-height: 1; }
 @media (min-width: 520px) { .jr-cal-c b { font-size: 12.5px; } .jr-cal-c i { font-size: 11.5px; } }
+
+/* журнал на широком экране: контент по центру, плитки календаря не растягиваются */
+.jr-top, .jr-body { padding-left: max(14px, calc((100% - 760px) / 2)); padding-right: max(14px, calc((100% - 760px) / 2)); }
+@media (min-width: 560px) {
+  .jr-cal .full { display: inline; } .jr-cal .short { display: none; }
+  .jr-cal-c { aspect-ratio: 1 / .9; padding: 7px 7px 6px; border-radius: 14px; }
+  .jr-cal-c i { font-size: 12px; } .jr-cal-c b { font-size: 15px; } .jr-cnt { font-size: 10.5px; }
+  .jr-cal-c.wk b { font-size: 13px; } .jr-cal-c.wk small { font-size: 10px; }
+  .jr-cal-grid { gap: 6px; }
+}
+/* переключатель $ / % */
+.jr-unit { display: flex; align-items: center; gap: 6px; margin: -2px 0 10px; }
+.jr-unit button { border: 0; width: 40px; padding: 6px 0; border-radius: 9px; font-size: 13.5px; font-weight: 800; color: var(--text-2); background: rgba(255,255,255,.06); cursor: pointer; }
+.jr-unit button.on { background: #fff; color: #000; }
+.jr-unit small { font-size: 11px; color: var(--text-3); margin-left: 4px; }
