@@ -988,7 +988,7 @@ main .chip.glass.active { background: #fff; }
 @keyframes rise-lite { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* приложение на телефоне (PWA) и браузер: шапка не заходит под часы и Dynamic Island */
-html.no-tg .top { padding-top: calc(env(safe-area-inset-top, 0px) + 14px); }
+html.no-tg .top { padding-top: calc(env(safe-area-inset-top, 0px) + 26px); }
 html.no-tg .compact-title { height: calc(env(safe-area-inset-top, 0px) + 46px); padding-top: env(safe-area-inset-top, 0px); }
 html.no-tg .toast { top: calc(env(safe-area-inset-top, 0px) + 12px); }
 html.no-tg .pc { padding-top: env(safe-area-inset-top, 0px); }
