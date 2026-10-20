@@ -1168,3 +1168,94 @@ html.no-tg .jr { padding-top: env(safe-area-inset-top, 0px); }
 .jr-unit button { border: 0; width: 40px; padding: 6px 0; border-radius: 9px; font-size: 13.5px; font-weight: 800; color: var(--text-2); background: rgba(255,255,255,.06); cursor: pointer; }
 .jr-unit button.on { background: #fff; color: #000; }
 .jr-unit small { font-size: 11px; color: var(--text-3); margin-left: 4px; }
+
+/* ================================================================ АДАПТИВ: маленькие телефоны · телефоны · планшеты · ноутбуки/десктоп */
+html, body { overflow-x: clip; }
+.brand, .titles { min-width: 0; }
+.updated { min-width: 0; }
+#updated-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* — маленькие телефоны (iPhone SE, mini, узкие Android) */
+@media (max-width: 380px) {
+  .top { padding-left: 12px; padding-right: 12px; }
+  main { padding-left: 12px; padding-right: 12px; }
+  .brand { gap: 9px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 10px; }
+  .brand-word { height: 16px; }
+  .updated { font-size: 11.5px; }
+  .top-actions { gap: 6px; }
+  .profile-btn { width: 36px; height: 36px; }
+  .lang-btn { height: 36px; padding: 0 10px; font-size: 12.5px; }
+  .mode-seg { max-width: none; }
+  .quotes { gap: 8px; }
+  .pc-head { flex-wrap: wrap; row-gap: 6px; }
+  .pc-tf { width: 100%; max-width: none; }
+  .pc-px b { font-size: 21px; }
+  .pc-stats { gap: 4px; padding-left: 8px; padding-right: 8px; }
+  .pc-stats div { padding: 6px; }
+  .pc-stats b { font-size: 12px; }
+  .pc-legend { font-size: 9.5px; right: 60px; }
+  .pc-legend .lg-row.dim { display: none; }
+  .pc-ex { padding-right: 140px; }
+}
+
+/* — планшеты и большие телефоны в альбомной: контент по центру, без растягивания */
+@media (min-width: 640px) {
+  .top, main { max-width: 760px; margin-left: auto; margin-right: auto; }
+  main { padding-left: 20px; padding-right: 20px; }
+  .top { padding-left: 20px; padding-right: 20px; }
+  .pc-ai { left: 50%; right: auto; width: min(640px, 100%); transform: translate(-50%, 100%); }
+  .pc-ai.show { transform: translate(-50%, 0); }
+}
+
+/* — ноутбуки и десктоп */
+@media (min-width: 1024px) {
+  .top, main { max-width: 1180px; }
+  main { padding-left: 28px; padding-right: 28px; padding-bottom: 40px; }
+  .top { padding-left: 28px; padding-right: 28px; }
+  /* «Обзор» — две колонки: слева пульс рынка, доминация и настроение, справа котировки, сессии и главное */
+  #tab-overview.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-areas: "promo promo" "pulse main" "dom main" "mood main" ". main"; column-gap: 20px; align-items: start; }
+  #app-promo { grid-area: promo; } #ov-pulse { grid-area: pulse; } #dom-card { grid-area: dom; } #ov-mood { grid-area: mood; } #ov-main { grid-area: main; }
+  #tab-overview.active > * { min-width: 0; }
+  #app-promo:empty { display: none; }
+  /* ленты — удобная ширина для чтения */
+  #tab-signals, #tab-news, #tab-calendar { max-width: 860px; margin: 0 auto; }
+  /* графики — выше и шире */
+  .chart-box { height: calc(100vh - 300px); min-height: 520px; }
+  .dom-widget { height: 170px; }
+  /* Pro Chart: ИИ-ассистент — боковая панель справа, график остаётся виден */
+  .pc-ai { left: auto; right: 0; top: 0; bottom: 0; width: 420px; height: auto; border-radius: 22px 0 0 22px; transform: translateX(100%); padding-top: calc(env(safe-area-inset-top, 0px) + 6px); }
+  .pc-ai.show { transform: none; }
+  .pc-ai-grab { display: none; }
+  /* на десктопе график сужается и остаётся виден рядом с ассистентом */
+  .pc.ai-open > :not(.pc-ai):not(.pc-pay):not(.pc-ai-fab) { margin-right: 420px; transition: margin-right .3s var(--ease); }
+  .pc.ai-open .pc-ai-fab { display: none; }
+  .pc-stats { grid-template-columns: repeat(4, minmax(0, 190px)); }
+  .pc-head, .pc-stats, .pc-tools, .pc-assets, .pc-top, .pc-ex { padding-left: 20px; padding-right: 20px; }
+  .pc-ex { padding-right: 220px; }
+  .pc-chart-wrap { margin: 0 12px; }
+}
+
+/* — большие мониторы */
+@media (min-width: 1600px) {
+  .top, main { max-width: 1320px; }
+  .pc-chart-wrap { margin: 0 24px; }
+}
+
+/* — телефон в альбомной ориентации: экономим высоту */
+@media (max-height: 500px) and (orientation: landscape) {
+  .tabbar { height: 54px; bottom: 6px; }
+  .nav-btn span { display: none; }
+  .pc-stats, .pc-ex { display: none; }
+  .pc-top { padding-top: 4px; padding-bottom: 0; }
+  .pc-assets { padding-top: 2px; padding-bottom: 2px; }
+  .chart-box { height: calc(100vh - 120px); min-height: 220px; }
+  .jr-cal-c { aspect-ratio: 1 / .7; }
+}
+
+/* — мышь и трекпад: подсказки наведения вместо «нажатия» */
+@media (hover: hover) and (pointer: fine) {
+  .pressable:hover { background: linear-gradient(180deg, rgba(40, 40, 40, .86), rgba(20, 20, 20, .8)); }
+  .chip:hover, .pc-assets button:hover, .pc-tools button:hover, .jr-seg button:hover { color: var(--text); }
+  .jr-cal-c.pos:hover, .jr-cal-c.neg:hover { transform: translateY(-2px); }
+}

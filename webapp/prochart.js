@@ -799,6 +799,7 @@
   function openAI() {
     const box = $("#pc-ai");
     box.hidden = false;
+    $("#pc").classList.add("ai-open");
     requestAnimationFrame(() => box.classList.add("show"));
     $("#pc-ai-sub").textContent = `${S.sym} · ${_t(TFS.find((x) => x[0] === S.tf)[2])}`;
     $("#pc-ai-quick").innerHTML = QUICK.map((q) => `<button>${esc(_t(q))}</button>`).join("");
@@ -809,7 +810,7 @@
         <div class="ai-note">${esc(aiNote())}</div></div>`;
     }
   }
-  function closeAI() { const box = $("#pc-ai"); box.classList.remove("show"); setTimeout(() => { box.hidden = true; }, 250); }
+  function closeAI() { const box = $("#pc-ai"); box.classList.remove("show"); const pc = $("#pc"); if (pc) pc.classList.remove("ai-open"); setTimeout(() => { box.hidden = true; }, 250); }
   function aiNote() {
     const A = window.AUTH;
     if (!CFG.supabaseUrl || !A || !A.enabled) return _t("ИИ-ассистент подключится вместе со входом в аккаунт.");
