@@ -40,6 +40,17 @@ Return STRICT JSON only:
 Give a plan only if the user asks for a trade/plan or the setup is clear; otherwise null.`;
 }
 
+// вытаскиваем первый корректный JSON-объект из текста (модель может обернуть его в ```json … ``` или добавить слова)
+function parseJSON(txt: string): Record<string, unknown> | null {
+  const clean = txt.replace(/```(?:json)?/gi, "");
+  const start = clean.indexOf("{");
+  if (start < 0) return null;
+  for (let end = clean.lastIndexOf("}"); end > start; end = clean.lastIndexOf("}", end - 1)) {
+    try { return JSON.parse(clean.slice(start, end + 1)); } catch { /* пробуем короче */ }
+  }
+  return null;
+}
+
 async function llm(messages: unknown[]) {
   const key = Deno.env.get("LLM_API_KEY") ?? "";
   if (!key) throw new Error("LLM_API_KEY is not set");
@@ -52,14 +63,23 @@ async function llm(messages: unknown[]) {
       const r = await fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://alexmcq999-dev.github.io/marketnews999/", "X-Title": "McQ Pro Chart" },
-        body: JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 900, response_format: { type: "json_object" } }),
+        // reasoning-модели (Claude 5.x, GPT-6 и т.п.) тратят часть max_tokens на «размышления» — даём запас и просим думать коротко
+        body: JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 4000, reasoning: { effort: "low", exclude: true }, response_format: { type: "json_object" } }),
       });
       const d = await r.json();
       if (!r.ok) { errs.push(`${model}: ${r.status} ${JSON.stringify(d).slice(0, 160)}`); continue; }
-      const txt: string = d.choices?.[0]?.message?.content ?? "";
-      const m = txt.match(/\{[\s\S]*\}/);
-      if (!m) { errs.push(`${model}: no json`); continue; }
-      return JSON.parse(m[0]);
+      const msg = d.choices?.[0]?.message ?? {};
+      // текст ответа может прийти строкой, массивом блоков или аргументами tool call — собираем всё
+      let txt = "";
+      if (typeof msg.content === "string") txt = msg.content;
+      else if (Array.isArray(msg.content)) txt = msg.content.map((b: { text?: string }) => b?.text ?? "").join("");
+      if (!txt.includes("{") && msg.tool_calls?.[0]?.function?.arguments) txt = String(msg.tool_calls[0].function.arguments);
+      const parsed = parseJSON(txt);
+      if (!parsed) {
+        errs.push(`${model}: no json (finish=${d.choices?.[0]?.finish_reason ?? "?"}, text=${JSON.stringify(txt.slice(0, 80))})`);
+        continue;
+      }
+      return parsed;
     } catch (e) { errs.push(`${model}: ${(e as Error).message}`); }
   }
   throw new Error(errs.join(" | ").slice(0, 400));
