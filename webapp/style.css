@@ -1129,18 +1129,28 @@ html.no-tg .jr { padding-top: env(safe-area-inset-top, 0px); }
 .jr-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, .95fr); gap: 4px; }
 .jr-cal-wd { text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); padding-bottom: 2px; }
 .jr-cal-wd.wk { color: #f5c451; }
-.jr-cal-c { position: relative; aspect-ratio: 1 / 1.08; min-width: 0; border: 0; border-radius: 10px; padding: 4px 3px 3px; display: flex; flex-direction: column; justify-content: space-between; align-items: center;
-  background: rgba(255,255,255,.035); color: var(--text); font: inherit; cursor: default; overflow: hidden; }
-.jr-cal-c.out { background: transparent; }
-.jr-cal-c i { align-self: flex-start; font-style: normal; font-size: 10px; font-weight: 600; color: var(--text-2); line-height: 1; }
-.jr-cal-c b { font-size: 10.5px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
-.jr-cal-c small { align-self: flex-end; font-size: 8.5px; color: rgba(255,255,255,.6); line-height: 1; }
-.jr-cal-c.pos, .jr-cal-c.neg { cursor: pointer; transition: transform .2s var(--spring); }
+.jr-cal-c { --c: #8a8a8a; --k: 0%; position: relative; aspect-ratio: 1 / 1.1; min-width: 0; border: 0; border-radius: 12px; padding: 5px 4px 4px;
+  display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: var(--text); font: inherit; cursor: default; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02)); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.04); }
+.jr-cal-c.out { background: transparent; box-shadow: none; }
+.jr-cal-c.pos { --c: var(--up); } .jr-cal-c.neg { --c: var(--down); }
+/* стеклянная плитка: цвет набирается снизу вверх, сверху — блик и тонкий цветной ободок */
+.jr-cal-c.pos, .jr-cal-c.neg { cursor: pointer; transition: transform .25s var(--spring), box-shadow .2s ease;
+  background:
+    radial-gradient(120% 80% at 50% 115%, color-mix(in srgb, var(--c) calc(var(--k) * .95), transparent), transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, var(--c) calc(var(--k) * .28), rgba(255,255,255,.03)), color-mix(in srgb, var(--c) calc(var(--k) * .55), rgba(0,0,0,.2)));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px color-mix(in srgb, var(--c) calc(var(--k) * .6 + 12%), transparent), 0 6px 14px -8px color-mix(in srgb, var(--c) var(--k), transparent); }
 .jr-cal-c.pos:active, .jr-cal-c.neg:active { transform: scale(.92); }
-.jr-cal-c.pos b { color: #eafff3; } .jr-cal-c.neg b { color: #fff0ef; }
-.jr-cal-c.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.55); }
-.jr-cal-c.sel { box-shadow: inset 0 0 0 2px #f5c451; }
-.jr-cal-c.wk { justify-content: center; gap: 3px; background: rgba(245,196,81,.06); border: 1px dashed rgba(245,196,81,.22); }
-.jr-cal-c.wk b { font-size: 10px; } .jr-cal-c.wk.up b { color: var(--up); } .jr-cal-c.wk.down b { color: var(--down); }
-.jr-cal-c.wk small { align-self: center; }
+.jr-cal-c i { align-self: flex-start; font-style: normal; font-size: 10px; font-weight: 600; color: var(--text-3); line-height: 1; }
+.jr-cal-c.pos i, .jr-cal-c.neg i { color: rgba(255,255,255,.7); }
+.jr-cal-c b { font-size: 10.5px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+.jr-dots { display: flex; gap: 2px; align-items: center; height: 5px; font-style: normal; }
+.jr-dots u { display: block; width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.75); }
+.jr-dots span { font-size: 8px; line-height: 1; color: rgba(255,255,255,.75); font-weight: 700; }
+.jr-cal-c.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); }
+.jr-cal-c.pos.today, .jr-cal-c.neg.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.8), 0 6px 14px -8px color-mix(in srgb, var(--c) var(--k), transparent); }
+.jr-cal-c.sel { box-shadow: inset 0 0 0 2px #f5c451, 0 0 0 3px rgba(245,196,81,.18) !important; transform: translateY(-1px); }
+.jr-cal-c.wk { justify-content: center; gap: 4px; background: linear-gradient(180deg, rgba(245,196,81,.08), rgba(245,196,81,.03)); box-shadow: inset 0 0 0 1px rgba(245,196,81,.2); }
+.jr-cal-c.wk b { font-size: 10px; text-shadow: none; } .jr-cal-c.wk.up b { color: var(--up); } .jr-cal-c.wk.down b { color: var(--down); }
+.jr-cal-c.wk small { font-size: 8.5px; color: var(--text-3); line-height: 1; }
 @media (min-width: 520px) { .jr-cal-c b { font-size: 12.5px; } .jr-cal-c i { font-size: 11.5px; } }

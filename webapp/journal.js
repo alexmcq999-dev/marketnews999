@@ -703,7 +703,7 @@
   }
   function fmtShort(v) {
     const a = Math.abs(v), sg = v < 0 ? "−" : "+";
-    return a >= 1e5 ? `${sg}${(a / 1e3).toFixed(0)}K` : a >= 1e3 ? `${sg}${(a / 1e3).toFixed(1)}K` : `${sg}${a >= 100 ? a.toFixed(0) : a.toFixed(a >= 10 ? 0 : 1)}`;
+    return a >= 1e5 ? `${sg}$${(a / 1e3).toFixed(0)}K` : a >= 1e3 ? `${sg}$${(a / 1e3).toFixed(1)}K` : `${sg}$${a >= 100 ? a.toFixed(0) : a.toFixed(a >= 10 ? 0 : 1)}`;
   }
   function calendarHtml() {
     const src = calSource();
@@ -730,11 +730,12 @@
       if (dn < 1 || dn > days) cells += `<span class="jr-cal-c out"></span>`;
       else {
         const k = `${y}-${String(mo + 1).padStart(2, "0")}-${String(dn).padStart(2, "0")}`, g = byDay.get(k);
-        const a = g ? 0.16 + 0.6 * Math.min(1, Math.abs(g.pnl) / mx) : 0;
-        const bg = g ? `background: color-mix(in srgb, ${g.pnl >= 0 ? "var(--up)" : "var(--down)"} ${Math.round(a * 100)}%, transparent)` : "";
+        // интенсивность цвета — по величине результата дня относительно лучшего/худшего дня месяца
+        const a = g ? 0.22 + 0.78 * Math.min(1, Math.abs(g.pnl) / mx) : 0;
         if (g) { wk += g.pnl; wkN += g.n; }
-        cells += `<button class="jr-cal-c ${g ? (g.pnl >= 0 ? "pos" : "neg") : "none"} ${k === todayK ? "today" : ""} ${S.calDay === k ? "sel" : ""}" style="${bg}" ${g ? `data-j="cal-day" data-v="${k}"` : "disabled"}>
-          <i>${dn}</i>${g ? `<b>${fmtShort(g.pnl)}</b><small>${g.n}</small>` : ""}</button>`;
+        const dots = g ? `<em class="jr-dots" aria-label="${g.n}">${"<u></u>".repeat(Math.min(g.n, 4))}${g.n > 4 ? "<span>+</span>" : ""}</em>` : "";
+        cells += `<button class="jr-cal-c ${g ? (g.pnl >= 0 ? "pos" : "neg") : "none"} ${k === todayK ? "today" : ""} ${S.calDay === k ? "sel" : ""}" style="${g ? `--k:${Math.round(a * 100)}%` : ""}" ${g ? `data-j="cal-day" data-v="${k}"` : "disabled"}>
+          <i>${dn}</i>${g ? `<b>${fmtShort(g.pnl)}</b>${dots}` : ""}</button>`;
       }
       if (i % 7 === 6) {
         cells += `<span class="jr-cal-c wk ${wkN ? (wk >= 0 ? "up" : "down") : ""}">${wkN ? `<b>${fmtShort(wk)}</b><small>${wkN}</small>` : ""}</span>`;
@@ -757,7 +758,7 @@
       h += `<div class="section-title">${esc(d.toLocaleDateString(I18.locale, { weekday: "long", day: "numeric", month: "long" }))} <small class="${cls(g.pnl)}">${fmtUsd(g.pnl)} · ${g.n} · ${Math.round((g.w / g.n) * 100)}%</small></div>`;
       S._list = g.list.slice().sort((a, b) => b.closeT - a.closeT);
     } else {
-      h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки."))}</p>`;
+      h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки. Точки — число сделок, в колонке «Нед» — итог недели."))}</p>`;
       S._list = [];
     }
     h += `<div class="jr-trades" id="jr-trades"></div>`;
