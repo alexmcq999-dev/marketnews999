@@ -828,3 +828,40 @@ b.up, .nb-steps b.up { color: var(--up); } b.down, .nb-steps b.down { color: var
 /* iOS/Safari: у нас color-scheme: dark, а у iframe TradingView — светлая схема. При несовпадении браузер
    подкладывает под iframe непрозрачный белый фон. Выравниваем схему у самих iframe — фон снова прозрачный. */
 .dom-widget iframe, #tv-chart iframe, .tradingview-widget-container iframe { color-scheme: light; background: transparent; }
+
+/* ================================================================ вход и профиль */
+.has-user #refresh { display: none; }
+.profile-btn { position: relative; width: 42px; height: 42px; border: 0; border-radius: 50%; padding: 0; overflow: hidden; cursor: pointer; display: grid; place-items: center; flex: none; }
+.profile-btn[hidden] { display: none; }
+.profile-btn img, .pf-ava img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; }
+.profile-btn i, .pf-ava i { font-style: normal; font-weight: 700; font-size: 16px; }
+.profile-sheet { position: fixed; z-index: 70; width: 240px; padding: 8px; border-radius: 18px; background: color-mix(in srgb, #0b0b0b 94%, transparent);
+  opacity: 0; transform: translateY(-6px) scale(.97); transform-origin: top right; transition: opacity .2s ease, transform .3s var(--spring); }
+.profile-sheet.show { opacity: 1; transform: none; }
+.profile-sheet[hidden] { display: none; }
+.pf-head { display: flex; align-items: center; gap: 10px; padding: 6px 6px 10px; box-shadow: inset 0 -1px 0 var(--hair); margin-bottom: 6px; }
+.pf-ava { position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--glass-strong); display: grid; place-items: center; flex: none; }
+.pf-who { display: flex; flex-direction: column; min-width: 0; }
+.pf-who b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-who small { font-size: 12px; color: var(--text-3); }
+.profile-sheet button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 10px; border-radius: 12px; font-size: 15px; cursor: pointer; }
+.profile-sheet button:active { background: var(--glass-press); }
+.profile-sheet button.danger { color: var(--down); }
+
+.login { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: #000; opacity: 0; transition: opacity .4s ease; }
+.login.show { opacity: 1; }
+.login[hidden] { display: none; }
+.login-bg { position: absolute; inset: -4%; background: url(bg.jpg) 14% 40% / cover no-repeat; opacity: .55; }
+.login-bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(70% 50% at 50% 50%, rgba(0,0,0,.35), rgba(0,0,0,.85)); }
+.login-card { position: relative; width: min(380px, 100%); padding: 26px 20px 20px; border-radius: 30px; text-align: center; background: color-mix(in srgb, #000 55%, transparent); }
+.login-logo { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 0 0 .5px rgba(255,255,255,.25), 0 14px 40px -10px rgba(0,0,0,.9); }
+.login-card h2 { margin: 16px 0 6px; font: 700 22px/1.2 var(--font-display); letter-spacing: -0.02em; }
+.login-card p { margin: 0 0 20px; color: var(--text-2); font-size: 14px; }
+.login-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 52px; border: 0; border-radius: 16px; font-size: 16px; font-weight: 650; cursor: pointer;
+  background: var(--glass-strong); color: var(--text); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); transition: transform .3s var(--spring); }
+.login-btn + .login-btn { margin-top: 10px; }
+.login-btn:active { transform: scale(.97); }
+.login-btn.tg { background: #fff; color: #000; box-shadow: none; }
+.login-btn svg { width: 22px; height: 22px; }
+.login-err { min-height: 18px; margin-top: 12px; font-size: 13px; color: var(--down); }
+.login-card small { display: block; margin-top: 6px; font-size: 11.5px; color: var(--text-3); }

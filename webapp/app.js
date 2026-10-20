@@ -951,6 +951,7 @@
   }
   function setMode(m, quiet) {
     try { localStorage.setItem("amq-mode", m); } catch (e) { /* noop */ }
+    if (window.AUTH && window.AUTH.saveSettings) window.AUTH.saveSettings();
     if (state.mode === m && quiet) { applyMode(); return; }
     state.mode = m;
     applyMode();
@@ -1047,6 +1048,8 @@
         OneSignal.User.PushSubscription.addEventListener("change", sync);
         sync();
         window.__os = OneSignal;
+        // персональные пуши: связываем подписку с аккаунтом
+        if (window.AUTH && window.AUTH.enabled) window.AUTH.onUser((u) => { try { OneSignal.login(u.id); } catch (e) { /* noop */ } });
       } catch (e) { pushState = "unsupported"; renderPromo(); }
     });
   }

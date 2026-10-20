@@ -62,6 +62,9 @@ jobs:
           X_REFRESH_MIN: ${{ vars.X_REFRESH_MIN }}
           ONESIGNAL_APP_ID: ${{ vars.ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.ONESIGNAL_API_KEY }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          TG_BOT_ID: ${{ vars.TG_BOT_ID }}
         run: python bot.py --mode ${{ steps.mode.outputs.mode }} --export site
 
       # Публикация мини-приложения. Если GitHub Pages ещё не включён — дайджест всё равно уходит.
