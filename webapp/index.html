@@ -91,6 +91,11 @@
     <section id="tab-signals" class="tab" aria-label="Сигналы"></section>
     <section id="tab-news" class="tab" aria-label="Новости"></section>
     <section id="tab-charts" class="tab" aria-label="Графики">
+      <button class="pc-card glass pressable" id="pc-open" type="button">
+        <span class="pc-card-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 19V9M10 19V5M15 19v-7M20 19V8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M3 13.5c3-1 5-4.5 9-4.5s5.5 3 9 2" stroke="#f5c451" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></span>
+        <span class="pc-card-t"><b>McQ Pro Chart <i class="pc-pro">PRO</i></b><small>9 бирж · VWAP в каждой свече · профиль объёма · CVD · OI · ИИ-ассистент</small></span>
+        <span class="pc-card-go" aria-hidden="true">→</span>
+      </button>
       <div class="chips" id="chart-assets" role="tablist" aria-label="Актив"></div>
       <div class="chart-controls">
         <div class="segmented glass" id="chart-interval" role="radiogroup" aria-label="Таймфрейм"></div>
@@ -163,6 +168,7 @@
 
   <script src="i18n.js"></script>
   <script src="sessions.js"></script>
+  <script src="prochart.js"></script>
   <script src="app.js"></script>
   <script src="auth.js"></script>
 </body>

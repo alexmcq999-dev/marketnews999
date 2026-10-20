@@ -105,6 +105,7 @@
     btn.innerHTML = v.avatar ? `<img src="${esc(v.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><i>${ini}</i>` : `<i>${ini}</i>`;
     sheet.innerHTML = `<div class="pf-head"><span class="pf-ava">${btn.innerHTML}</span>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
+      ${AUTH.plan === "pro" ? `<div class="pf-plan">McQ PRO${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString())}` : ""}</div>` : ""}
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
       ${inTG ? "" : `<button data-pf="logout" class="danger">${esc(t("Выйти"))}</button>`}`;
     sheet.querySelectorAll("[data-pf]").forEach((b) => b.addEventListener("click", async () => {
@@ -142,11 +143,30 @@
   }
   AUTH.saveSettings = () => { if (AUTH.user) saveProfile(AUTH.user); };
 
+  // подписка McQ Pro: строка в таблице subscriptions (пишет только сервер/админ, клиент лишь читает свою)
+  let planReq = null;
+  AUTH.plan = "free";
+  AUTH.loadPlan = () => {
+    if (!AUTH.sb || !AUTH.user) return Promise.resolve("free");
+    if (!planReq) {
+      planReq = AUTH.sb.from("subscriptions").select("plan,until").eq("user_id", AUTH.user.id).maybeSingle()
+        .then(({ data }) => {
+          const ok = data && data.plan === "pro" && (!data.until || new Date(data.until) > new Date());
+          AUTH.plan = ok ? "pro" : "free";
+          AUTH.planUntil = ok ? data.until : null;
+          return AUTH.plan;
+        })
+        .catch(() => "free");
+    }
+    return planReq;
+  };
+
   function setUser(u) {
     const changed = (AUTH.user && AUTH.user.id) !== (u && u.id);
     AUTH.user = u || null;
+    if (changed) { planReq = null; AUTH.plan = "free"; }
     renderProfile();
-    if (u) { hideLogin(); if (changed) { saveProfile(u); AUTH.listeners.forEach((fn) => { try { fn(u); } catch (e) { /* noop */ } }); } }
+    if (u) { hideLogin(); if (changed) { saveProfile(u); AUTH.loadPlan().then(renderProfile); AUTH.listeners.forEach((fn) => { try { fn(u); } catch (e) { /* noop */ } }); } }
     else if (!inTG) showLogin();
   }
 

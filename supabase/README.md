@@ -22,3 +22,28 @@
 В мини-приложении Telegram вход происходит сам (по данным Telegram), формы нет.
 В браузере и в приложении на телефоне — экран входа: Telegram или Google. После входа пуши OneSignal
 привязываются к аккаунту (можно слать персональные уведомления).
+
+---
+
+# McQ Pro Chart (интеллектуальный чарт + ИИ-ассистент)
+
+Чарт работает сразу, без настроек: свечи и объёмы берутся из публичных API 9 бирж прямо в приложении.
+Для ИИ-ассистента и будущей подписки:
+
+8. **Таблицы подписки** — SQL Editor → вставь `supabase/migrations/002_pro.sql` → Run.
+9. **Функция ИИ** — Edge Functions → Deploy a new function → имя `chart-ai` → код из
+   `supabase/functions/chart-ai/index.ts`. «Verify JWT» оставь **включённым**.
+   Secrets функции: `LLM_API_KEY` — тот же ключ OpenRouter, что у бота (секрет `LLM_API_KEY` в GitHub).
+   Необязательно: `LLM_MODEL` (по умолчанию `openai/gpt-4o-mini`), `AI_FREE_LIMIT` (вопросов в день без подписки, 15),
+   `AI_PRO_LIMIT` (с подпиской, 100), `PREMIUM_MODE`.
+   (CLI: `supabase functions deploy chart-ai`, `supabase secrets set LLM_API_KEY=...`)
+10. **Режим доступа** — пока `PREMIUM_MODE` не задан, чарт и ИИ открыты всем (ИИ — только вошедшим, с дневным лимитом).
+    Когда запустишь подписку: GitHub → Variables → `PREMIUM_MODE` = `paid` **и** такой же секрет `PREMIUM_MODE=paid` у функции `chart-ai`.
+    Тогда без подписки откроется экран «McQ PRO» с кнопкой «Хочу McQ Pro» (заявки — таблица `pro_waitlist`).
+11. **Выдать подписку вручную** (Authentication → Users → скопируй id):
+    ```sql
+    insert into public.subscriptions (user_id, plan, until, source)
+    values ('<uuid>', 'pro', now() + interval '30 days', 'manual')
+    on conflict (user_id) do update set plan = excluded.plan, until = excluded.until, source = excluded.source;
+    ```
+    Позже сюда же будет писать оплата (Telegram Stars / Stripe) — клиент таблицу только читает.

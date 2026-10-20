@@ -536,6 +536,8 @@
     if (gp) gp.addEventListener("click", () => setMode("pro"));
     box.querySelectorAll("#sig-period button").forEach((b) => b.addEventListener("click", () => { state.sigPeriod = b.dataset.p; haptic(); renderSignals(); }));
     box.querySelectorAll(".sig-card[data-sym], .radar-row[data-sym]").forEach((c) => c.addEventListener("click", () => {
+      // в режиме «Продвинутый» сделка открывается в McQ Pro Chart (с линиями входа, стопа и целей)
+      if (state.mode === "pro" && window.ProChart && c.classList.contains("sig-card")) { window.ProChart.open({ symbol: c.dataset.sym }); return; }
       state.asset = c.dataset.sym; state.interval = "60"; switchTab("charts");
     }));
   }
@@ -1102,7 +1104,15 @@
   function routeHash() {
     const h = (location.hash || "").replace("#", "");
     if (["overview", "signals", "news", "charts", "calendar"].includes(h)) switchTab(h);
+    if (h === "prochart" && window.ProChart) { switchTab("charts"); window.ProChart.open(); }
   }
+  // McQ Pro Chart: кнопка во вкладке «Графики»
+  const pcBtn = $("#pc-open");
+  if (pcBtn) pcBtn.addEventListener("click", () => {
+    const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset);
+    if (window.ProChart) window.ProChart.open({ symbol: crypto ? state.asset : "BTC" });
+  });
+  window.McQ = { sig: () => state.sig, mode: () => state.mode, setMode: (m) => setMode(m) };
   window.addEventListener("hashchange", routeHash);
 
   mountDominance();

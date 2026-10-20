@@ -887,7 +887,8 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
             cfg = {"onesignal": os.getenv("ONESIGNAL_APP_ID", ""),
                    # вход (Supabase): URL и anon-ключ публичные по задумке Supabase, защищает их RLS
                    "supabaseUrl": (os.getenv("SUPABASE_URL") or "").rstrip("/"),
-                   "supabaseKey": os.getenv("SUPABASE_ANON_KEY", ""), "tgBotId": os.getenv("TG_BOT_ID", "")}
+                   "supabaseKey": os.getenv("SUPABASE_ANON_KEY", ""), "tgBotId": os.getenv("TG_BOT_ID", ""),
+               "premium": "paid" if (os.getenv("PREMIUM_MODE") or "").strip().lower() == "paid" else "open"}
             html = html.replace("<!--APP_CONFIG-->", f"<script>window.APP_CONFIG={json.dumps(cfg)}</script>")
             with open(idx, "w", encoding="utf-8") as f:
                 f.write(html)

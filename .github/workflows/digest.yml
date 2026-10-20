@@ -65,6 +65,7 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           TG_BOT_ID: ${{ vars.TG_BOT_ID }}
+          PREMIUM_MODE: ${{ vars.PREMIUM_MODE }}
         run: python bot.py --mode ${{ steps.mode.outputs.mode }} --export site
 
       # Публикация мини-приложения. Если GitHub Pages ещё не включён — дайджест всё равно уходит.
