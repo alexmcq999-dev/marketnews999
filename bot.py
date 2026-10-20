@@ -874,15 +874,24 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
     if os.path.isdir(src):
         shutil.copytree(src, out_dir, dirs_exist_ok=True)
-        # сброс кэша Telegram: ссылки на css/js/картинки получают версию сборки (?v=...),
-        # иначе WebView в Telegram может часами показывать старую версию приложения
+        # сброс кэша Telegram: ссылки на css/js/картинки получают версию по СОДЕРЖИМОМУ файла (?v=<хэш>).
+        # Файл изменился — меняется ссылка и телефон скачивает новую версию; не изменился — берёт из кэша
+        # (раньше версия менялась каждую часовую сборку, и телефоны каждый час заново качали весь код).
         idx = os.path.join(out_dir, "index.html")
         if os.path.exists(idx):
-            import re as _re
-            ver = now.strftime("%Y%m%d%H%M")
+            import re as _re, hashlib as _hl
             with open(idx, encoding="utf-8") as f:
                 html = f.read()
-            html = _re.sub(r'((?:src|href)=")([\w./-]+\.(?:js|css|svg|jpg|png))(")', rf'\g<1>\g<2>?v={ver}\g<3>', html)
+
+            def _ver(m):
+                path = os.path.join(out_dir, m.group(2))
+                try:
+                    with open(path, "rb") as fh:
+                        h = _hl.sha1(fh.read()).hexdigest()[:10]
+                except OSError:
+                    h = now.strftime("%Y%m%d%H%M")
+                return f"{m.group(1)}{m.group(2)}?v={h}{m.group(3)}"
+            html = _re.sub(r'((?:src|href)=")([\w./-]+\.(?:js|css|svg|jpg|png))(")', _ver, html)
             # настройки для приложения на телефоне (пуши OneSignal); App ID — публичный, ключ API сюда не попадает
             cfg = {"onesignal": os.getenv("ONESIGNAL_APP_ID", ""),
                    # вход (Supabase): URL и anon-ключ публичные по задумке Supabase, защищает их RLS
