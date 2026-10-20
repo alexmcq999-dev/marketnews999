@@ -992,3 +992,4 @@ html.no-tg .top { padding-top: calc(env(safe-area-inset-top, 0px) + 26px); }
 html.no-tg .compact-title { height: calc(env(safe-area-inset-top, 0px) + 46px); padding-top: env(safe-area-inset-top, 0px); }
 html.no-tg .toast { top: calc(env(safe-area-inset-top, 0px) + 12px); }
 html.no-tg .pc { padding-top: env(safe-area-inset-top, 0px); }
+#login .login-btn[hidden] { display: none; }

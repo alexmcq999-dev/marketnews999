@@ -170,9 +170,21 @@
     else if (!inTG) showLogin();
   }
 
+  // кнопку Google показываем, только если провайдер включён в Supabase (Authentication → Providers → Google)
+  function checkProviders() {
+    fetch(`${CFG.supabaseUrl}/auth/v1/settings`, { headers: { apikey: CFG.supabaseKey } })
+      .then((r) => r.json())
+      .then((s) => {
+        const g = document.querySelector('#login [data-login="google"]');
+        if (g && s && s.external && s.external.google === false) g.hidden = true;
+      })
+      .catch(() => { /* не удалось проверить — оставляем кнопку */ });
+  }
+
   // ---------------------------------------------------------------- старт
   (async () => {
     bindLogin();
+    checkProviders();
     bindProfile();
     try { await loadSdk(); } catch (e) { AUTH.enabled = false; document.documentElement.classList.remove("auth-on"); return; }
     AUTH.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, {
