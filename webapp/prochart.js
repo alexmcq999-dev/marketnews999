@@ -377,6 +377,7 @@
         <div class="pc-chart" id="pc-chart"></div>
         <div class="pc-legend" id="pc-legend"></div>
         <div class="pc-msg" id="pc-msg"></div>
+        <button class="pc-fit" id="pc-fit" hidden aria-label="${esc(_t("Вернуть масштаб"))}"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${esc(_t("Авто"))}</span></button>
       </div>
       <div class="pc-ex" id="pc-ex"></div>
       <button class="pc-ai-fab" data-act="ai"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l1.8 4.9L19 9.7l-4.3 3 1.4 5.3L12 15l-4.1 3 1.4-5.3L5 9.7l5.2-1.8z" fill="currentColor"/></svg><span>${esc(_t("ИИ-ассистент"))}</span></button>
@@ -477,8 +478,6 @@
       grid: { vertLines: { color: C.hair }, horzLines: { color: C.hair } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.06 } },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 },
-      // на телефоне вертикальный свайп по графику не двигает ценовую шкалу (иначе она «залипает» в ручном режиме)
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       crosshair: { mode: LW.CrosshairMode.Normal,
         vertLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" },
         horzLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" } },
@@ -511,6 +510,11 @@
       msg(_t("Якорный VWAP построен"), 1500);
     });
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => { recalcProfile(); });
+    // шкалу цены можно двигать пальцем; если она ушла в ручной режим — показываем кнопку «Авто»
+    const wrap = $("#pc-chart");
+    const checkFit = () => setTimeout(() => { const f = $("#pc-fit"); if (f) f.hidden = ser.candle.priceScale().options().autoScale !== false; }, 60);
+    ["touchend", "mouseup", "wheel"].forEach((ev) => wrap.addEventListener(ev, checkFit, { passive: true }));
+    $("#pc-fit").addEventListener("click", () => { fitView(); $("#pc-fit").hidden = true; });
   }
   function idxOf(t) {
     let lo = 0, hi = S.cs.length - 1;
@@ -565,13 +569,15 @@
     overlay.cs = cs; overlay.showTicks = S.show.ticks; overlay.showVP = S.show.vp;
     drawSignal();
     drawAILevels();
-    if (!keepRange) {
-      // новая монета или таймфрейм: возвращаем автомасштаб всем шкалам (после ручного зума шкала оставалась на старой цене)
-      [ser.candle, ser.vol, ser.cvd, ser.oi].forEach((x) => { try { x.priceScale().applyOptions({ autoScale: true }); } catch (e) { /* noop */ } });
-      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, cs.length - (S.sec >= 86400 ? 120 : 90)), to: cs.length + 6 });
-    }
+    if (!keepRange) fitView();   // новая монета или таймфрейм: автомасштаб (после ручного сдвига шкала оставалась на старой цене)
     recalcProfile();
     legend(); exPanel(); stats();
+  }
+  function fitView() {
+    [ser.candle, ser.vol, ser.cvd, ser.oi].forEach((x) => { try { x.priceScale().applyOptions({ autoScale: true }); } catch (e) { /* noop */ } });
+    const n = S.cs.length;
+    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - (S.sec >= 86400 ? 120 : 90)), to: n + 6 });
+    const f = $("#pc-fit"); if (f) f.hidden = true;
   }
   function oiSeries() {
     if (!S.oi) return [];
