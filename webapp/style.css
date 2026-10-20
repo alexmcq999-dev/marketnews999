@@ -971,3 +971,24 @@ html.pc-open, html.pc-open body { overflow: hidden; }
 .pf-plan { margin: 2px 0 8px; font-size: 12px; font-weight: 700; color: #f5c451; }
 @media (min-width: 720px) { .pc-stats { grid-template-columns: repeat(4, minmax(0, 160px)); } .pc-ex { padding-right: 180px; } }
 .pc[hidden], .pc [hidden] { display: none !important; }
+
+/* ================================================================ производительность (iPhone грелся)
+   Раньше фон постоянно двигался (4 размытых пятна, картинка, водяной знак), а над ним ~20 стеклянных карточек
+   с backdrop-filter — их размытие пересчитывалось в каждом кадре, видеочип работал без остановки.
+   Теперь фон статичный, у карточек в ленте — плотное «матовое» стекло без живого размытия;
+   настоящее размытие осталось только у плавающих панелей (таббар, шапка, меню, шторки). */
+.orb, .ambient .bgimg, .ambient .wm { animation: none !important; will-change: auto; }
+main .glass, .pc .glass {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(180deg, rgba(30, 30, 30, .82), rgba(14, 14, 14, .78));
+}
+main .glass.pressable:active { background: linear-gradient(180deg, rgba(48, 48, 48, .86), rgba(24, 24, 24, .82)); }
+main .chip.glass.active { background: #fff; }
+.tab.active { animation: rise-lite .35s var(--ease); }
+@keyframes rise-lite { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* приложение на телефоне (PWA) и браузер: шапка не заходит под часы и Dynamic Island */
+html.no-tg .top { padding-top: calc(env(safe-area-inset-top, 0px) + 14px); }
+html.no-tg .compact-title { height: calc(env(safe-area-inset-top, 0px) + 46px); padding-top: env(safe-area-inset-top, 0px); }
+html.no-tg .toast { top: calc(env(safe-area-inset-top, 0px) + 12px); }
+html.no-tg .pc { padding-top: env(safe-area-inset-top, 0px); }

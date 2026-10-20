@@ -3,6 +3,8 @@
   "use strict";
 
   const tg = window.Telegram && window.Telegram.WebApp;
+  // вне Telegram (приложение на телефоне, браузер) отступы от чёлки/Dynamic Island берём у системы
+  if (!(tg && tg.initData)) document.documentElement.classList.add("no-tg");
   const I18 = window.I18N || { t: (s) => s, lang: "ru", locale: "ru-RU", tv: "ru", langs: {}, setLang() {}, translateDom() {} };
   const _t = I18.t, LOCALE = I18.locale;
   const CYR = /[А-Яа-яЁё]/;
@@ -16,7 +18,13 @@
   function hidePreloader() {
     if (preHidden) return;
     preHidden = true;
-    setTimeout(() => { const p = document.getElementById("preloader"); if (p) p.classList.add("done"); }, Math.max(0, 1200 - (Date.now() - T0)));
+    setTimeout(() => {
+      const p = document.getElementById("preloader");
+      if (!p) return;
+      p.classList.add("done");
+      // после затухания убираем прелоадер целиком: его бесконечные анимации иначе продолжают грузить видеочип
+      setTimeout(() => p.remove(), 800);
+    }, Math.max(0, 1200 - (Date.now() - T0)));
   }
   setTimeout(hidePreloader, 7000);
   const TZ = "Europe/Moscow";
