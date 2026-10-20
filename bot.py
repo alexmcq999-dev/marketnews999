@@ -824,6 +824,23 @@ def previous_news() -> dict:
     return {k: d.get(k) for k in ("news", "mood", "mood_i18n", "news_updated", "news_since") if k in d}
 
 
+def send_push(title: dict, body: dict, path: str = "") -> None:
+    """Пуш в приложение McQCryptoNews (OneSignal). title/body: {"ru": ..., "en": ...}. Без секретов — молча пропускаем."""
+    app_id, key = os.getenv("ONESIGNAL_APP_ID"), os.getenv("ONESIGNAL_API_KEY")
+    if not app_id or not key:
+        return
+    url = (os.getenv("WEBAPP_URL") or "").rstrip("/") + "/" + path
+    try:
+        r = requests.post("https://api.onesignal.com/notifications?c=push", timeout=HTTP_TIMEOUT,
+                          headers={"Authorization": f"Key {key}", "Content-Type": "application/json"},
+                          json={"app_id": app_id, "included_segments": [os.getenv("ONESIGNAL_SEGMENT") or "Total Subscriptions"],
+                                "headings": {k: v for k, v in title.items() if v}, "contents": {k: v for k, v in body.items() if v},
+                                "url": url, "web_push_topic": "digest", "ttl": 6 * 3600})
+        print(f"[push] {r.status_code} {r.text[:120]}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001
+        print(f"[push] {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def social_sections(now: datetime, general_items: list[dict] | None = None) -> dict:
     """Крипто X и Perp DEX (src: cryptox.py). Ошибка не должна ломать дайджест."""
     try:
@@ -866,6 +883,9 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
             with open(idx, encoding="utf-8") as f:
                 html = f.read()
             html = _re.sub(r'((?:src|href)=")([\w./-]+\.(?:js|css|svg|jpg|png))(")', rf'\g<1>\g<2>?v={ver}\g<3>', html)
+            # настройки для приложения на телефоне (пуши OneSignal); App ID — публичный, ключ API сюда не попадает
+            cfg = {"onesignal": os.getenv("ONESIGNAL_APP_ID", "")}
+            html = html.replace("<!--APP_CONFIG-->", f"<script>window.APP_CONFIG={json.dumps(cfg)}</script>")
             with open(idx, "w", encoding="utf-8") as f:
                 f.write(html)
     os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
@@ -1028,6 +1048,12 @@ def main() -> None:
     else:
         send(text)
         setup_menu_button()
+        top = (ai or {}).get("items") or []
+        first = top[0][1] if top else {}
+        en = ((first.get("i18n") or {}).get("en") or {}).get("title") or (top[0][0]["lead"]["title"] if top else "")
+        send_push({"ru": "📰 Свежий выпуск новостей", "en": "📰 Fresh market news"},
+                  {"ru": first.get("title_ru") or "Главное за последние часы", "en": en or "Top stories of the last hours"},
+                  "#news")
         print(f"Отправлено: {len(ai['items']) if ai else len(chosen)} событий", file=sys.stderr)
 
 

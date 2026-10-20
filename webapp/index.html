@@ -7,6 +7,13 @@
   <title>McQCryptoNews</title>
   <meta name="description" content="McQCryptoNews — рынки, сигналы, настроения, новости и графики в Telegram">
   <link rel="icon" href="mark.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="McQ">
+  <!--APP_CONFIG-->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preload" href="bg.jpg" as="image">
   <link rel="stylesheet" href="style.css">
@@ -69,6 +76,7 @@
 
   <main>
     <section id="tab-overview" class="tab active" aria-label="Обзор">
+      <div id="app-promo"></div>
       <div id="ov-pulse"></div>
       <div class="dom glass" id="dom-card">
         <div class="dom-head"><span class="k">Доминация BTC</span><span class="live">онлайн · TradingView</span></div>

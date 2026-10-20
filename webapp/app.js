@@ -1008,7 +1008,104 @@
     catch (e) { const el = document.getElementById("sessions"); if (el) el.innerHTML = ""; }
   }
 
+  // ---------------------------------------------------------------- приложение на телефон (PWA) и пуши
+  const CFG = window.APP_CONFIG || {};
+  const inTG = !!(tg && tg.initData);
+  const standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const appDir = location.pathname.replace(/[^/]*$/, "");          // /marketnews999/
+  const appUrl = location.origin + appDir;
+  let installEvt = null;
+  const LS = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* noop */ } } };
+
+  if (!inTG && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js", { scope: appDir }).catch(() => { /* без офлайна */ });
+  }
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; renderPromo(); });
+  window.addEventListener("appinstalled", () => { installEvt = null; LS.set("amq-installed", "1"); renderPromo(); });
+
+  let pushState = "off";  // off | on | denied | unsupported
+  function initPush() {
+    if (inTG || !CFG.onesignal || !("Notification" in window)) { pushState = "unsupported"; return; }
+    if (isIOS && !standalone) { pushState = "need-install"; return; }
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
+    sc.defer = true;
+    document.head.appendChild(sc);
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      try {
+        await OneSignal.init({ appId: CFG.onesignal, serviceWorkerPath: appDir.slice(1) + "sw.js",
+          serviceWorkerParam: { scope: appDir }, notifyButton: { enable: false }, autoResubscribe: true });
+        try { OneSignal.User.setLanguage(I18.lang); } catch (e) { /* старый SDK */ }
+        const sync = () => {
+          const on = OneSignal.User.PushSubscription.optedIn;
+          pushState = on ? "on" : (Notification.permission === "denied" ? "denied" : "off");
+          renderPromo();
+        };
+        OneSignal.User.PushSubscription.addEventListener("change", sync);
+        sync();
+        window.__os = OneSignal;
+      } catch (e) { pushState = "unsupported"; renderPromo(); }
+    });
+  }
+  async function enablePush() {
+    haptic();
+    const OS = window.__os;
+    if (!OS) return;
+    try {
+      await OS.Notifications.requestPermission();
+      await OS.User.PushSubscription.optIn();
+      OS.User.addTags({ lang: I18.lang, mode: state.mode });
+    } catch (e) { /* пользователь отказал */ }
+  }
+
+  function renderPromo() {
+    const box = $("#app-promo");
+    if (!box) return;
+    let h = "";
+    if (inTG) {
+      // в Telegram: предложить поставить приложение на телефон (с пушами)
+      if (!LS.get("amq-promo-tg")) {
+        h = `<div class="promo glass"><span class="promo-ic"><img src="icons/icon-192.png" alt=""></span>
+          <div class="promo-t"><b>${_t("McQCryptoNews на телефоне")}</b><span>${_t("Отдельное приложение с пуш-уведомлениями о сигналах и важных событиях.")}</span></div>
+          <button class="promo-btn" data-act="open">${_t("Установить")}</button><button class="promo-x" data-act="hide-tg" aria-label="×">×</button></div>`;
+      }
+    } else if (!standalone && !LS.get("amq-promo-install")) {
+      const how = isIOS ? _t("Нажми «Поделиться» внизу Safari → «На экран «Домой»».") : _t("Добавь на главный экран — откроется как обычное приложение.");
+      h = `<div class="promo glass"><span class="promo-ic"><img src="icons/icon-192.png" alt=""></span>
+        <div class="promo-t"><b>${_t("Установи приложение")}</b><span>${how}</span></div>
+        ${installEvt ? `<button class="promo-btn" data-act="install">${_t("Установить")}</button>` : ""}
+        <button class="promo-x" data-act="hide-install" aria-label="×">×</button></div>`;
+    }
+    if (!inTG && (pushState === "off") && !LS.get("amq-promo-push")) {
+      h += `<div class="promo glass"><span class="promo-ic bell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
+        <div class="promo-t"><b>${_t("Уведомления")}</b><span>${_t("Новые сигналы, тейк/стоп, важные события и утренний план — сразу на телефон.")}</span></div>
+        <button class="promo-btn" data-act="push">${_t("Включить")}</button><button class="promo-x" data-act="hide-push" aria-label="×">×</button></div>`;
+    }
+    box.innerHTML = h;
+    box.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
+      const a = b.dataset.act;
+      if (a === "open") openLink(appUrl + "?install=1");
+      else if (a === "install" && installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) { /* noop */ } installEvt = null; }
+      else if (a === "push") await enablePush();
+      else if (a.startsWith("hide-")) LS.set("amq-promo-" + a.slice(5), "1");
+      renderPromo();
+    }));
+  }
+
+  // переход по ссылке из пуша: …/#signals, #news, #calendar, #charts
+  function routeHash() {
+    const h = (location.hash || "").replace("#", "");
+    if (["overview", "signals", "news", "charts", "calendar"].includes(h)) switchTab(h);
+  }
+  window.addEventListener("hashchange", routeHash);
+
   mountDominance();
+  initPush();
+  renderPromo();
+  routeHash();
   load(false);
   loadSignals();
   loadLive();
