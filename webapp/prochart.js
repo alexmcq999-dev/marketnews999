@@ -477,6 +477,8 @@
       grid: { vertLines: { color: C.hair }, horzLines: { color: C.hair } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.06 } },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 },
+      // на телефоне вертикальный свайп по графику не двигает ценовую шкалу (иначе она «залипает» в ручном режиме)
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       crosshair: { mode: LW.CrosshairMode.Normal,
         vertLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" },
         horzLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" } },
@@ -563,7 +565,11 @@
     overlay.cs = cs; overlay.showTicks = S.show.ticks; overlay.showVP = S.show.vp;
     drawSignal();
     drawAILevels();
-    if (!keepRange) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, cs.length - (S.sec >= 86400 ? 120 : 90)), to: cs.length + 6 });
+    if (!keepRange) {
+      // новая монета или таймфрейм: возвращаем автомасштаб всем шкалам (после ручного зума шкала оставалась на старой цене)
+      [ser.candle, ser.vol, ser.cvd, ser.oi].forEach((x) => { try { x.priceScale().applyOptions({ autoScale: true }); } catch (e) { /* noop */ } });
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, cs.length - (S.sec >= 86400 ? 120 : 90)), to: cs.length + 6 });
+    }
     recalcProfile();
     legend(); exPanel(); stats();
   }
@@ -667,7 +673,7 @@
     S.cs = aggregate(bySrc).slice(-LIMIT);
     msg("");
     S.hover = null;
-    draw();
+    try { draw(); } catch (e) { msg(esc(`${_t("Ошибка графика")}: ${e.message || e}`)); return; }
     startLive();
   }
   async function refreshLast() {
