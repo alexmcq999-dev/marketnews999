@@ -22,8 +22,8 @@
       const p = document.getElementById("preloader");
       if (!p) return;
       p.classList.add("done");
-      // после затухания убираем прелоадер целиком: его бесконечные анимации иначе продолжают грузить видеочип
-      setTimeout(() => p.remove(), 800);
+      // после затухания прячем прелоадер совсем (display: none): его бесконечные анимации иначе продолжают грузить видеочип
+      setTimeout(() => { if (p.classList.contains("done")) p.hidden = true; }, 800);
     }, Math.max(0, 1200 - (Date.now() - T0)));
   }
   setTimeout(hidePreloader, 7000);
@@ -934,7 +934,9 @@
   langMenu.querySelectorAll("[data-l]").forEach((b) => b.addEventListener("click", () => {
     haptic();
     if (b.dataset.l === I18.lang) return closeLang();
-    document.getElementById("preloader").classList.remove("done");  // красиво: перезагрузка через прелоадер
+    // красиво: перезагрузка через прелоадер (если его нет — просто перезагружаемся)
+    const pre = document.getElementById("preloader");
+    if (pre) { pre.hidden = false; requestAnimationFrame(() => pre.classList.remove("done")); }
     setTimeout(() => I18.setLang(b.dataset.l), 250);
   }));
   document.addEventListener("click", (e) => { if (!langMenu.hidden && !langMenu.contains(e.target)) closeLang(); });
