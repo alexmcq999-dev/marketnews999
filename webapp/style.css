@@ -1112,3 +1112,35 @@ html.no-tg .jr { padding-top: env(safe-area-inset-top, 0px); }
 .jr-muted { margin: 0; color: var(--text-3); font-size: 12.5px; }
 .jr-toast { position: absolute; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); z-index: 6; padding: 12px 14px; border-radius: 14px; font-size: 13px; background: #222; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
 @media (max-width: 380px) { .jr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .jr-two { grid-template-columns: 1fr; } }
+/* журнал: переключатель вида и календарь */
+.jr-views { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255,255,255,.05); }
+.jr-views button { border: 0; border-radius: 10px; padding: 9px; font-size: 14px; font-weight: 700; color: var(--text-2); background: transparent; cursor: pointer; }
+.jr-views button.on { background: #fff; color: #000; }
+.jr-cal { padding: 12px 10px 10px; border-radius: 20px; }
+.jr-cal-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 10px; }
+.jr-cal-h b { font-size: 17px; letter-spacing: -.01em; }
+.jr-cal-h .pc-x { font-size: 20px; line-height: 1; }
+.jr-cal-h .pc-x:disabled { opacity: .3; }
+.jr-cal-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+.jr-cal-sum div { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; border-radius: 12px; background: rgba(255,255,255,.04); min-width: 0; }
+.jr-cal-sum span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jr-cal-sum b { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-cal-sum em { font-style: normal; }
+.jr-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, .95fr); gap: 4px; }
+.jr-cal-wd { text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); padding-bottom: 2px; }
+.jr-cal-wd.wk { color: #f5c451; }
+.jr-cal-c { position: relative; aspect-ratio: 1 / 1.08; min-width: 0; border: 0; border-radius: 10px; padding: 4px 3px 3px; display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+  background: rgba(255,255,255,.035); color: var(--text); font: inherit; cursor: default; overflow: hidden; }
+.jr-cal-c.out { background: transparent; }
+.jr-cal-c i { align-self: flex-start; font-style: normal; font-size: 10px; font-weight: 600; color: var(--text-2); line-height: 1; }
+.jr-cal-c b { font-size: 10.5px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.jr-cal-c small { align-self: flex-end; font-size: 8.5px; color: rgba(255,255,255,.6); line-height: 1; }
+.jr-cal-c.pos, .jr-cal-c.neg { cursor: pointer; transition: transform .2s var(--spring); }
+.jr-cal-c.pos:active, .jr-cal-c.neg:active { transform: scale(.92); }
+.jr-cal-c.pos b { color: #eafff3; } .jr-cal-c.neg b { color: #fff0ef; }
+.jr-cal-c.today { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.55); }
+.jr-cal-c.sel { box-shadow: inset 0 0 0 2px #f5c451; }
+.jr-cal-c.wk { justify-content: center; gap: 3px; background: rgba(245,196,81,.06); border: 1px dashed rgba(245,196,81,.22); }
+.jr-cal-c.wk b { font-size: 10px; } .jr-cal-c.wk.up b { color: var(--up); } .jr-cal-c.wk.down b { color: var(--down); }
+.jr-cal-c.wk small { align-self: center; }
+@media (min-width: 520px) { .jr-cal-c b { font-size: 12.5px; } .jr-cal-c i { font-size: 11.5px; } }

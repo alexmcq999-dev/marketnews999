@@ -55,7 +55,8 @@ Return STRICT JSON only: {"answer": string}`;
 }
 
 // вытаскиваем первый корректный JSON-объект из текста (модель может обернуть его в ```json … ``` или добавить слова)
-function parseJSON(txt: string): Record<string, unknown> | null {
+// deno-lint-ignore no-explicit-any
+function parseJSON(txt: string): any {
   const clean = txt.replace(/```(?:json)?/gi, "");
   const start = clean.indexOf("{");
   if (start < 0) return null;

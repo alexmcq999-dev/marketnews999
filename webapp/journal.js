@@ -598,6 +598,9 @@
     else if (act === "ai") aiReview(a);
     else if (act === "tag") toggleTag(v, a.dataset.tag);
     else if (act === "more") { S.showAll = true; renderTrades(); }
+    else if (act === "view") { S.view = v; S.expanded = null; S.showAll = false; render(); }
+    else if (act === "cal-month") { const d = calMonth(); S.calMonth = new Date(d.getFullYear(), d.getMonth() + +v, 1); S.calDay = null; render(); }
+    else if (act === "cal-day") { S.calDay = S.calDay === v ? null : v; S.expanded = null; render(); }
   }
 
   function filtered() {
@@ -618,8 +621,11 @@
     let h = "";
     if (S.demo) h += `<div class="jr-demo">${esc(_t("Это пример на выдуманных сделках."))} <button data-j="exit-demo">${esc(_t("Подключить свою биржу"))}</button></div>`;
     h += `<div class="jr-status" id="jr-status">${statusHtml()}</div>`;
-    h += `<div class="jr-filters"><div class="jr-seg">${[[7, "7д"], [30, "30д"], [90, "90д"], [0, "Всё"]].map(([v, l]) => `<button class="${S.period === v ? "on" : ""}" data-j="period" data-v="${v}">${esc(_t(l))}</button>`).join("")}</div>`
+    h += `<div class="jr-views"><button class="${S.view !== "calendar" ? "on" : ""}" data-j="view" data-v="summary">${esc(_t("Сводка"))}</button><button class="${S.view === "calendar" ? "on" : ""}" data-j="view" data-v="calendar">${esc(_t("Календарь"))}</button></div>`;
+    const cal = S.view === "calendar";
+    h += `<div class="jr-filters">${cal ? "" : `<div class="jr-seg">${[[7, "7д"], [30, "30д"], [90, "90д"], [0, "Всё"]].map(([v, l]) => `<button class="${S.period === v ? "on" : ""}" data-j="period" data-v="${v}">${esc(_t(l))}</button>`).join("")}</div>`}`
       + (exs.length > 1 ? `<div class="jr-seg">${["all", ...exs].map((x) => `<button class="${S.exFilter === x ? "on" : ""}" data-j="exf" data-v="${x}">${esc(x === "all" ? _t("Все") : EX[x].name.replace(" Futures", ""))}</button>`).join("")}</div>` : "") + `</div>`;
+    if (cal) { h += calendarHtml(); body.innerHTML = h; renderTrades(); return; }
     if (!s.n) {
       h += `<div class="jr-empty glass"><p>${esc(S.syncing ? _t("Загружаю сделки с биржи…") : _t("За этот период закрытых сделок нет."))}</p></div>`;
       body.innerHTML = h; return;
@@ -680,6 +686,82 @@
     const m = Object.fromEntries(groups.map((g) => [g.k, g]));
     const mx = Math.max(1, ...groups.map((g) => Math.abs(g.pnl)));
     return `<div class="jr-bars">${Array.from({ length: n }, (_, i) => { const g = m[i] || { pnl: 0, n: 0 }; const hgt = Math.max(2, (Math.abs(g.pnl) / mx) * 48); return `<div><i class="${cls(g.pnl)}" style="height:${hgt}px" title="${fmtUsd(g.pnl)}"></i><span>${esc(label(i))}</span></div>`; }).join("")}</div>`;
+  }
+
+  // ---------------------------------------------------------------- календарь PnL по дням
+  const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  function calSource() {
+    const src = S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades;
+    return src.filter((t) => !t.open && t.closeT && (S.exFilter === "all" || t.ex === S.exFilter));
+  }
+  function calMonth() {
+    if (S.calMonth) return S.calMonth;
+    const src = calSource();
+    const last = src.reduce((m, t) => Math.max(m, t.closeT), 0) || Date.now();
+    const d = new Date(last);
+    return (S.calMonth = new Date(d.getFullYear(), d.getMonth(), 1));
+  }
+  function fmtShort(v) {
+    const a = Math.abs(v), sg = v < 0 ? "−" : "+";
+    return a >= 1e5 ? `${sg}${(a / 1e3).toFixed(0)}K` : a >= 1e3 ? `${sg}${(a / 1e3).toFixed(1)}K` : `${sg}${a >= 100 ? a.toFixed(0) : a.toFixed(a >= 10 ? 0 : 1)}`;
+  }
+  function calendarHtml() {
+    const src = calSource();
+    const byDay = new Map();
+    src.forEach((t) => { const k = dayKey(t.closeT); const g = byDay.get(k) || { pnl: 0, n: 0, w: 0, list: [] }; g.pnl += t.pnl; g.n++; if (t.pnl > 0) g.w++; g.list.push(t); byDay.set(k, g); });
+    const m0 = calMonth(), y = m0.getFullYear(), mo = m0.getMonth();
+    const days = new Date(y, mo + 1, 0).getDate(), lead = (new Date(y, mo, 1).getDay() + 6) % 7;
+    const inMonth = [...byDay.entries()].filter(([k]) => k.startsWith(`${y}-${String(mo + 1).padStart(2, "0")}`));
+    const mx = Math.max(1, ...inMonth.map(([, g]) => Math.abs(g.pnl)));
+    const mPnl = inMonth.reduce((a, [, g]) => a + g.pnl, 0), mTrades = inMonth.reduce((a, [, g]) => a + g.n, 0);
+    const green = inMonth.filter(([, g]) => g.pnl > 0).length, red = inMonth.filter(([, g]) => g.pnl < 0).length;
+    const best = inMonth.reduce((b, e) => (!b || e[1].pnl > b[1].pnl ? e : b), null);
+    const todayK = dayKey(Date.now());
+    const title = new Date(y, mo, 1).toLocaleDateString(I18.locale, { month: "long", year: "numeric" });
+    const allKeys = [...byDay.keys()].sort();
+    const canPrev = allKeys.length && allKeys[0] < `${y}-${String(mo + 1).padStart(2, "0")}-01`;
+    const canNext = new Date(y, mo + 1, 1) <= new Date();
+    const wd = [_t("Пн"), _t("Вт"), _t("Ср"), _t("Чт"), _t("Пт"), _t("Сб"), _t("Вс")];
+    let cells = wd.map((d) => `<span class="jr-cal-wd">${esc(d)}</span>`).join("") + `<span class="jr-cal-wd wk">${esc(_t("Нед"))}</span>`;
+    const total = Math.ceil((lead + days) / 7) * 7;
+    let wk = 0, wkN = 0;
+    for (let i = 0; i < total; i++) {
+      const dn = i - lead + 1;
+      if (dn < 1 || dn > days) cells += `<span class="jr-cal-c out"></span>`;
+      else {
+        const k = `${y}-${String(mo + 1).padStart(2, "0")}-${String(dn).padStart(2, "0")}`, g = byDay.get(k);
+        const a = g ? 0.16 + 0.6 * Math.min(1, Math.abs(g.pnl) / mx) : 0;
+        const bg = g ? `background: color-mix(in srgb, ${g.pnl >= 0 ? "var(--up)" : "var(--down)"} ${Math.round(a * 100)}%, transparent)` : "";
+        if (g) { wk += g.pnl; wkN += g.n; }
+        cells += `<button class="jr-cal-c ${g ? (g.pnl >= 0 ? "pos" : "neg") : "none"} ${k === todayK ? "today" : ""} ${S.calDay === k ? "sel" : ""}" style="${bg}" ${g ? `data-j="cal-day" data-v="${k}"` : "disabled"}>
+          <i>${dn}</i>${g ? `<b>${fmtShort(g.pnl)}</b><small>${g.n}</small>` : ""}</button>`;
+      }
+      if (i % 7 === 6) {
+        cells += `<span class="jr-cal-c wk ${wkN ? (wk >= 0 ? "up" : "down") : ""}">${wkN ? `<b>${fmtShort(wk)}</b><small>${wkN}</small>` : ""}</span>`;
+        wk = 0; wkN = 0;
+      }
+    }
+    let h = `<div class="jr-cal glass">
+      <div class="jr-cal-h"><button class="pc-x sm" data-j="cal-month" data-v="-1" ${canPrev ? "" : "disabled"} aria-label="${esc(_t("Назад"))}">‹</button>
+        <b>${esc(title.charAt(0).toUpperCase() + title.slice(1))}</b>
+        <button class="pc-x sm" data-j="cal-month" data-v="1" ${canNext ? "" : "disabled"} aria-label="${esc(_t("Вперёд"))}">›</button></div>
+      <div class="jr-cal-sum"><div><span>${esc(_t("Итог"))}</span><b class="${cls(mPnl)}">${fmtUsd(mPnl)}</b></div>
+        <div><span>${esc(_t("Дни"))}</span><b><em class="up">${green}</em> / <em class="down">${red}</em></b></div>
+        <div><span>${esc(_t("Сделок"))}</span><b>${mTrades}</b></div>
+        <div><span>${esc(_t("Лучший"))}</span><b class="up">${best && best[1].pnl > 0 ? fmtUsd(best[1].pnl) : "—"}</b></div></div>
+      <div class="jr-cal-grid">${cells}</div>
+    </div>`;
+    if (S.calDay && byDay.get(S.calDay)) {
+      const g = byDay.get(S.calDay);
+      const d = new Date(S.calDay + "T12:00:00");
+      h += `<div class="section-title">${esc(d.toLocaleDateString(I18.locale, { weekday: "long", day: "numeric", month: "long" }))} <small class="${cls(g.pnl)}">${fmtUsd(g.pnl)} · ${g.n} · ${Math.round((g.w / g.n) * 100)}%</small></div>`;
+      S._list = g.list.slice().sort((a, b) => b.closeT - a.closeT);
+    } else {
+      h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки."))}</p>`;
+      S._list = [];
+    }
+    h += `<div class="jr-trades" id="jr-trades"></div>`;
+    return h;
   }
 
   const TAGS = ["Пробой", "Отбой", "Тренд", "Сигнал McQ", "FOMO", "Отыгрыш", "По плану", "Ранний выход"];
