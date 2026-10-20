@@ -87,7 +87,14 @@
       <div id="ov-mood"></div>
       <div id="ov-main"></div>
     </section>
-    <section id="tab-signals" class="tab" aria-label="Сигналы"></section>
+    <section id="tab-signals" class="tab" aria-label="Сигналы">
+      <button class="pc-card jr-entry glass pressable" id="jr-open" type="button">
+        <span class="pc-card-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#f5c451" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="pc-card-t"><b>Мой торговый журнал</b><small>Подключи биржу — статистика твоих сделок, ошибки и ИИ-разбор</small></span>
+        <span class="pc-card-go" aria-hidden="true">→</span>
+      </button>
+      <div id="signals-body"></div>
+    </section>
     <section id="tab-news" class="tab" aria-label="Новости"></section>
     <section id="tab-charts" class="tab" aria-label="Графики">
       <button class="pc-card glass pressable" id="pc-open" type="button">
@@ -168,6 +175,7 @@
   <script src="i18n.js"></script>
   <script src="sessions.js"></script>
   <script src="prochart.js"></script>
+  <script src="journal.js"></script>
   <script src="app.js"></script>
   <script src="auth.js"></script>
 </body>

@@ -419,7 +419,7 @@
   }
 
   function renderSignals() {
-    const box = $("#tab-signals");
+    const box = $("#signals-body") || $("#tab-signals");
     if (!box) return;
     const d = state.sig;
     if (!d) {
@@ -1115,6 +1115,7 @@
     const h = (location.hash || "").replace("#", "");
     if (["overview", "signals", "news", "charts", "calendar"].includes(h)) switchTab(h);
     if (h === "prochart" && window.ProChart) { switchTab("charts"); window.ProChart.open(); }
+    if (h === "journal" && window.Journal) { switchTab("signals"); window.Journal.open(); }
   }
   // McQ Pro Chart: кнопка во вкладке «Графики»
   const pcBtn = $("#pc-open");
@@ -1122,6 +1123,8 @@
     const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset);
     if (window.ProChart) window.ProChart.open({ symbol: crypto ? state.asset : "BTC" });
   });
+  const jrBtn = $("#jr-open");
+  if (jrBtn) jrBtn.addEventListener("click", () => { haptic(); if (window.Journal) window.Journal.open(); });
   window.McQ = { sig: () => state.sig, mode: () => state.mode, setMode: (m) => setMode(m) };
   window.addEventListener("hashchange", routeHash);
 

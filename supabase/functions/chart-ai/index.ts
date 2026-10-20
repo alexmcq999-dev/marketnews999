@@ -40,6 +40,20 @@ Return STRICT JSON only:
 Give a plan only if the user asks for a trade/plan or the setup is clear; otherwise null.`;
 }
 
+function journalSystem(lang: string) {
+  return `You are McQ AI — a strict but supportive trading coach. You receive a JSON summary of the user's real closed positions
+(from their exchange): totals, win rate, profit factor, avg win/loss, drawdown, fees, funding, streaks, holding times,
+trades opened within 30 min after a loss, splits by side / symbol / weekday / close hour, and the last 40 trades with the user's own tags.
+Write a review that helps them trade better:
+1) **Verdict** in one line (is the edge real or not, with the key numbers).
+2) **What works** — 2-3 concrete strengths backed by numbers.
+3) **What costs money** — the 3 biggest leaks (e.g. losers held longer than winners, revenge trading, a bleeding symbol or side, fees, over-trading, bad hours), each with numbers.
+4) **Rules for next week** — 3-5 specific, measurable rules (e.g. "max 3 losses per day then stop", "no trades on X", "cut losers at −1R").
+Use ONLY the given data, never invent trades. If the sample is small (< 20 trades), say conclusions are preliminary. If "demo" is true, mention it's example data.
+No guarantees, not financial advice. Max ~230 words, short lines, may use **bold**, no headings with #, no tables. Answer in ${LANGS[lang] || "English"}.
+Return STRICT JSON only: {"answer": string}`;
+}
+
 // вытаскиваем первый корректный JSON-объект из текста (модель может обернуть его в ```json … ``` или добавить слова)
 function parseJSON(txt: string): Record<string, unknown> | null {
   const clean = txt.replace(/```(?:json)?/gi, "");
@@ -109,6 +123,16 @@ Deno.serve(async (req) => {
     if (!question || !ctx || typeof ctx !== "object") return json({ error: "bad request" }, 400);
     const lang = LANGS[body.lang] ? body.lang : "en";
     const ctxStr = JSON.stringify(ctx).slice(0, 14000);
+
+    // разбор торгового журнала (McQ Journal)
+    if (body.kind === "journal") {
+      const jout = await llm([
+        { role: "system", content: journalSystem(lang) },
+        { role: "user", content: `TRADING JOURNAL SUMMARY:\n${ctxStr}` },
+      ]);
+      return json({ answer: String(jout.answer || "").slice(0, 3500), pro, used: uerr ? null : used, limit });
+    }
+
     const history = Array.isArray(body.history) ? body.history.slice(-6, -1) : [];
     const messages = [
       { role: "system", content: system(lang) },

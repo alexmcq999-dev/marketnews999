@@ -106,11 +106,13 @@
     sheet.innerHTML = `<div class="pf-head"><span class="pf-ava">${btn.innerHTML}</span>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
       ${AUTH.plan === "pro" ? `<div class="pf-plan">McQ PRO${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString())}` : ""}</div>` : ""}
+      <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
       ${inTG ? "" : `<button data-pf="logout" class="danger">${esc(t("Выйти"))}</button>`}`;
     sheet.querySelectorAll("[data-pf]").forEach((b) => b.addEventListener("click", async () => {
       closeSheet();
       if (b.dataset.pf === "refresh") { const r = $("#refresh"); if (r) r.click(); }
+      if (b.dataset.pf === "journal" && window.Journal) window.Journal.open();
       if (b.dataset.pf === "logout") { await AUTH.sb.auth.signOut(); }
     }));
   }
