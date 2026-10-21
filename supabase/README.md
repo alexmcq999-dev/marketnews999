@@ -39,11 +39,38 @@
    (CLI: `supabase functions deploy chart-ai`, `supabase secrets set LLM_API_KEY=...`)
 10. **Режим доступа** — пока `PREMIUM_MODE` не задан, чарт и ИИ открыты всем (ИИ — только вошедшим, с дневным лимитом).
     Когда запустишь подписку: GitHub → Variables → `PREMIUM_MODE` = `paid` **и** такой же секрет `PREMIUM_MODE=paid` у функции `chart-ai`.
-    Тогда без подписки откроется экран «McQ PRO» с кнопкой «Хочу McQ Pro» (заявки — таблица `pro_waitlist`).
+    Тогда без подписки откроется экран «McQ PRO» с кнопкой «Оформить McQ Pro».
 11. **Выдать подписку вручную** (Authentication → Users → скопируй id):
     ```sql
     insert into public.subscriptions (user_id, plan, until, source)
     values ('<uuid>', 'pro', now() + interval '30 days', 'manual')
     on conflict (user_id) do update set plan = excluded.plan, until = excluded.until, source = excluded.source;
     ```
-    Позже сюда же будет писать оплата (Telegram Stars / Stripe) — клиент таблицу только читает.
+    Сюда же пишет оплата (функция `billing`) — клиент таблицу только читает.
+
+---
+
+# Оплата McQ Pro: Telegram Stars + USDT
+
+В мини-приложении Telegram — **только Stars** (правило Telegram для цифровых товаров): ежемесячная подписка,
+продлевается сама, отмена — Настройки Telegram → Мои звёзды. В браузере / PWA — **USDT через Crypto Pay** (@CryptoBot),
+разово на 30 дней. Подписка привязана к аккаунту: оплатил на сайте — PRO работает и в Telegram.
+
+12. **Таблица платежей** — SQL Editor → `supabase/migrations/003_billing.sql` → Run.
+13. **Функция** — Edge Functions → Deploy a new function → имя `billing` → код `supabase/functions/billing/index.ts`.
+    «Verify JWT» — **выключить** (вебхуки Telegram и Crypto Pay приходят без JWT, пользователя функция проверяет сама).
+    Secrets функции (Edge Functions → Secrets — общие для всех функций): `TELEGRAM_BOT_TOKEN` уже есть.
+    Необязательно: `OWNER_CHAT_ID` (твой chat id — сюда бот пересылает вопросы пользователей), `PRO_PRICE_STARS` (1500),
+    `PRO_PRICE_USDT` (29.9), `PRO_TRIAL_DAYS` (3, `0` — без пробного), `PAY_BOT_TOKEN` (если оплату принимает другой бот).
+14. **Вебхук бота** — один раз открыть в браузере консоль и выполнить (или любой POST):
+    `fetch("https://<project>.supabase.co/functions/v1/billing",{method:"POST",body:JSON.stringify({action:"setup"})}).then(r=>r.json()).then(console.log)`
+    ⚠️ После этого бот получает сообщения через функцию, `getUpdates` для этого бота перестаёт работать
+    (`bot.py --get-chat-id`). Если тот же токен использует другой скрипт с `getUpdates` — заведи отдельного бота для оплаты
+    (`PAY_BOT_TOKEN`).
+15. **USDT** — в Telegram открыть @CryptoBot → Crypto Pay → Create App → скопировать токен →
+    секрет `CRYPTOPAY_TOKEN` в Supabase. В приложении Crypto Pay: Webhooks → включить →
+    URL `https://<project>.supabase.co/functions/v1/billing`. Тест без денег: @CryptoTestnetBot и секрет `CRYPTOPAY_TESTNET=1`.
+16. Пока нет `CRYPTOPAY_TOKEN`, кнопка USDT скрыта. Пока `PREMIUM_MODE` не `paid`, всё остаётся открытым, а купить подписку уже можно.
+
+Платежи — таблица `payments` (возвраты Stars отмечаются автоматически и снимают оплаченные дни).
+Вернуть звёзды пользователю: Bot API `refundStarPayment(user_id, telegram_payment_charge_id)`.

@@ -894,13 +894,14 @@
           <li>${esc(_t("Профиль объёма, CVD, открытый интерес, фандинг"))}</li>
           <li>${esc(_t("ИИ-ассистент: разбор графика, уровни и план сделки"))}</li>
         </ul>
-        <button class="pay-cta" data-pay="join">${esc(_t("Хочу McQ Pro"))}</button>
+        <button class="pay-cta" data-pay="join">${esc(window.Pro && window.Pro.available() ? _t("Оформить McQ Pro") : _t("Хочу McQ Pro"))}</button>
         <button class="pay-back" data-pay="back">${esc(_t("Назад"))}</button>
-        <small>${esc(_t("Подписка скоро. Оставь заявку — откроем доступ первым."))}</small>
+        <small>${esc(window.Pro && window.Pro.available() ? _t("Первые 3 дня бесплатно, без оплаты. Потом — $29.9 в месяц.") : _t("Подписка скоро. Оставь заявку — откроем доступ первым."))}</small>
       </div>`;
     el.hidden = false;
     el.querySelector('[data-pay="back"]').addEventListener("click", () => { el.hidden = true; if (!S.cs.length) close(); });
     el.querySelector('[data-pay="join"]').addEventListener("click", async (e) => {
+      if (window.Pro && window.Pro.available()) { window.Pro.open(); return; }
       const b = e.currentTarget;
       try {
         if (A && A.sb && A.user) await A.sb.from("pro_waitlist").upsert({ user_id: A.user.id });
@@ -908,9 +909,13 @@
       } catch (err) { b.textContent = _t("Заявка принята ✓"); b.disabled = true; }
     });
   }
+  // оплатили, пока открыт paywall — открываем график
+  document.addEventListener("mcq:plan", (e) => {
+    if (S.open && e.detail === "pro" && !$("#pc-pay").hidden) open({ symbol: S.sym });
+  });
 
   // ================================================================ открыть / закрыть
-  function onBack() { if (!$("#pc-ai").hidden) closeAI(); else close(); }
+  function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#pc-ai").hidden) closeAI(); else close(); }
   async function open(opts) {
     opts = opts || {};
     const el = shell();

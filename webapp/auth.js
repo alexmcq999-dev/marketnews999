@@ -105,7 +105,8 @@
     btn.innerHTML = v.avatar ? `<img src="${esc(v.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><i>${ini}</i>` : `<i>${ini}</i>`;
     sheet.innerHTML = `<div class="pf-head"><span class="pf-ava">${btn.innerHTML}</span>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
-      ${AUTH.plan === "pro" ? `<div class="pf-plan">McQ PRO${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString())}` : ""}</div>` : ""}
+      ${AUTH.plan === "pro" ? `<div class="pf-plan">McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
+      <button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>
       <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
       ${inTG ? "" : `<button data-pf="logout" class="danger">${esc(t("Выйти"))}</button>`}`;
@@ -113,6 +114,7 @@
       closeSheet();
       if (b.dataset.pf === "refresh") { const r = $("#refresh"); if (r) r.click(); }
       if (b.dataset.pf === "journal" && window.Journal) window.Journal.open();
+      if (b.dataset.pf === "pro" && window.Pro) window.Pro.open();
       if (b.dataset.pf === "logout") { await AUTH.sb.auth.signOut(); }
     }));
   }
@@ -151,17 +153,28 @@
   AUTH.loadPlan = () => {
     if (!AUTH.sb || !AUTH.user) return Promise.resolve("free");
     if (!planReq) {
-      planReq = AUTH.sb.from("subscriptions").select("plan,until").eq("user_id", AUTH.user.id).maybeSingle()
+      planReq = AUTH.sb.from("subscriptions").select("plan,until,source").eq("user_id", AUTH.user.id).maybeSingle()
         .then(({ data }) => {
           const ok = data && data.plan === "pro" && (!data.until || new Date(data.until) > new Date());
           AUTH.plan = ok ? "pro" : "free";
           AUTH.planUntil = ok ? data.until : null;
+          AUTH.planSource = ok ? data.source || null : null;
           return AUTH.plan;
         })
         .catch(() => "free");
     }
     return planReq;
   };
+  // перечитать подписку (после оплаты) и обновить профиль; событие mcq:plan — для экранов, которые ждут PRO
+  AUTH.refreshPlan = () => {
+    planReq = null;
+    return AUTH.loadPlan().then((p) => {
+      renderProfile();
+      try { document.dispatchEvent(new CustomEvent("mcq:plan", { detail: p })); } catch (e) { /* noop */ }
+      return p;
+    });
+  };
+  AUTH.showLogin = () => showLogin();
 
   function setUser(u) {
     const changed = (AUTH.user && AUTH.user.id) !== (u && u.id);

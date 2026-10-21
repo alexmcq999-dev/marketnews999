@@ -905,7 +905,7 @@
     if (!CFG.supabaseUrl || !A || !A.enabled || !A.sb) { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор подключится вместе со входом в аккаунт."))}</p>`; return; }
     const sess = (await A.sb.auth.getSession()).data.session;
     if (!sess) { out.innerHTML = `<p class="jr-muted">${esc(_t("Войди в аккаунт, чтобы получить ИИ-разбор."))}</p>`; return; }
-    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в McQ Pro."))}</p>`; return; }
+    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в McQ Pro."))}</p>${window.Pro && window.Pro.available() ? `<button class="jr-ai" id="jr-go-pro" style="margin-top:8px">${esc(_t("Оформить McQ Pro"))}</button>` : ""}`; const g = $("#jr-go-pro"); if (g) g.addEventListener("click", () => window.Pro.open()); return; }
     const s = stats(filtered());
     const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
     const ctx = {
@@ -938,7 +938,7 @@
   }
 
   // ---------------------------------------------------------------- открыть / закрыть
-  function onBack() { if (!$("#jr-sheet").hidden) closeSheet(); else close(); }
+  function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#jr-sheet").hidden) closeSheet(); else close(); }
   async function open() {
     const el = shell();
     S.open = true;
