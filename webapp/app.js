@@ -1102,11 +1102,57 @@
     box.innerHTML = h;
     box.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
       const a = b.dataset.act;
-      if (a === "open") openLink((CFG.appUrl || appUrl).replace(/\/?$/, "/") + "?install=1");   // всегда основной адрес приложения
+      if (a === "open") { installSheet(); return; }
       else if (a === "install" && installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) { /* noop */ } installEvt = null; }
       else if (a === "push") await enablePush();
       else if (a.startsWith("hide-")) LS.set("amq-promo-" + a.slice(5), "1");
       renderPromo();
+    }));
+  }
+
+  // Установка из Telegram. Встроенный браузер Telegram не умеет «На экран Домой», поэтому показываем шаги:
+  // открыть ссылку в Safari / Chrome (или скопировать её) и добавить приложение на главный экран.
+  function installSheet() {
+    const url = (CFG.appUrl || appUrl).replace(/\/?$/, "/") + "?install=1";
+    const ios = isIOS || (tg && tg.platform === "ios");
+    let el = $("#inst");
+    if (!el) { el = document.createElement("div"); el.id = "inst"; el.className = "inst"; document.body.appendChild(el); }
+    const steps = ios
+      ? [_t("Скопируй ссылку или нажми «Открыть»."), _t("Открой её в Safari (в браузере Telegram установка недоступна)."), _t("В Safari нажми «Поделиться» → «На экран «Домой»».")]
+      : [_t("Нажми «Открыть» — ссылка откроется в браузере."), _t("В Chrome нажми ⋮ → «Установить приложение» (или «Добавить на главный экран»).")];
+    el.innerHTML = `<div class="inst-bg" data-i="close"></div><div class="inst-card glass" role="dialog" aria-modal="true">
+        <button class="inst-x" data-i="close" aria-label="×">×</button>
+        <b class="inst-h">${_t("Установи McQCryptoNews на телефон")}</b>
+        <ol>${steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
+        <div class="inst-url">${esc(url.replace(/^https:\/\//, ""))}</div>
+        <button class="inst-btn" data-i="copy">${_t("Скопировать ссылку")}</button>
+        <button class="inst-btn alt" data-i="open">${_t("Открыть")}</button>
+        <small class="inst-dbg">${esc(`tg ${tg ? tg.version : "-"} · ${tg ? tg.platform : "-"}`)}</small>
+      </div>`;
+    el.hidden = false;
+    requestAnimationFrame(() => el.classList.add("show"));
+    const dbg = el.querySelector(".inst-dbg");
+    const close = () => { el.classList.remove("show"); setTimeout(() => { el.hidden = true; }, 200); };
+    el.querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", async () => {
+      const k = b.dataset.i;
+      if (k === "close") return close();
+      if (k === "copy") {
+        let ok = false;
+        try { await navigator.clipboard.writeText(url); ok = true; } catch (e) {
+          try { const ta = document.createElement("textarea"); ta.value = url; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;opacity:0";
+            document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, url.length); ok = document.execCommand("copy"); ta.remove(); } catch (e2) { /* noop */ }
+        }
+        b.textContent = ok ? _t("Ссылка скопирована ✓") : _t("Не получилось — выдели адрес выше и скопируй");
+        if (!ok) { const u = el.querySelector(".inst-url"); const r = document.createRange(); r.selectNodeContents(u); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+        try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(ok ? "success" : "warning"); } catch (e) { /* noop */ }
+      }
+      if (k === "open") {
+        try {
+          if (tg && tg.openLink) tg.openLink(url, ios ? undefined : { try_browser: "chrome" });
+          else window.open(url, "_blank", "noopener");
+          dbg.textContent += " · open ok";
+        } catch (e) { dbg.textContent += " · " + (e && e.message ? e.message : e); }
+      }
     }));
   }
 
