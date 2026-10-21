@@ -6,7 +6,7 @@
    Project Settings → API: скопируй `Project URL` и `anon public` ключ.
 2. **Таблица профилей** — SQL Editor → вставь `supabase/migrations/001_profiles.sql` → Run.
 3. **Адреса** — Authentication → URL Configuration:
-   Site URL и Redirect URLs: `https://alexmcq999-dev.github.io/marketnews999/`
+   Site URL и Redirect URLs: `https://mcqcryptonews.pages.dev/` (и старый `https://alexmcq999-dev.github.io/marketnews999/`)
 4. **Google** — Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application).
    Authorized redirect URI: `https://<project>.supabase.co/auth/v1/callback`.
    Client ID и Secret вставь в Supabase → Authentication → Providers → Google → Enable.
@@ -14,7 +14,7 @@
    Edge Functions → Deploy a new function → имя `telegram-auth` → вставь код `index.ts` → в настройках функции
    выключи «Verify JWT». Secrets функции: `TELEGRAM_BOT_TOKEN` = токен бота новостного приложения.
    (или CLI: `supabase functions deploy telegram-auth --no-verify-jwt`, `supabase secrets set TELEGRAM_BOT_TOKEN=...`)
-   В @BotFather: `/setdomain` → выбери бота → `alexmcq999-dev.github.io`.
+   В @BotFather: `/setdomain` → выбери бота → `mcqcryptonews.pages.dev`.
 6. **GitHub (marketnews999)** → Settings → Secrets and variables → Actions → **Variables**:
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `TG_BOT_ID` (число до двоеточия в токене бота).
 7. Запусти Actions → Market digest → Run workflow (mode = data).

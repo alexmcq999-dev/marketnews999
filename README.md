@@ -13,7 +13,8 @@
 - котировки и индексы — каждый час;
 - новости — вместе с дайджестом, в 08:00 и 16:00 МСК.
 
-Приложение — это статический сайт на GitHub Pages (папка `webapp/`), его собирает тот же workflow.
+Приложение — это статический сайт (папка `webapp/`), его собирает тот же workflow и публикует на **Cloudflare Pages**
+(`https://mcqcryptonews.pages.dev/`). Пока секреты Cloudflare не заданы — на GitHub Pages, как раньше.
 
 Как включить:
 1. Сделай репозиторий публичным: **Settings → General → Danger Zone → Change visibility → Public**. Токены и ключи в Secrets при этом остаются скрытыми.
@@ -21,6 +22,22 @@
 3. Запусти **Actions → Market digest → Run workflow**.
 
 Адрес приложения: `https://<логин>.github.io/<репозиторий>/`.
+
+### Cloudflare Pages (основной хостинг)
+
+1. dash.cloudflare.com → зарегистрируйся / войди. Справа на главной (Account home) скопируй **Account ID**.
+2. My Profile → API Tokens → Create Token → Custom token: Permissions **Account · Cloudflare Pages · Edit** → Create → скопируй токен.
+3. GitHub → Settings → Secrets and variables → Actions → **Secrets**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+   Необязательно, **Variables**: `CF_PAGES_PROJECT` (имя проекта, по умолчанию `mcqcryptonews` → `mcqcryptonews.pages.dev`),
+   `WEBAPP_URL` (свой домен, если подключишь его в Cloudflare).
+4. Actions → Market digest → Run workflow (digest). Проект в Cloudflare создастся сам.
+5. Новый адрес прописать: Supabase → Authentication → URL Configuration (Site URL + Redirect URLs),
+   @BotFather → `/setdomain` (вход через Telegram на сайте) и Mini App URL, OneSignal → Settings → Web → Site URL.
+   Кнопку «Рынки» в меню бота workflow обновляет сам.
+
+Старый адрес на GitHub Pages остаётся и переадресует на новый (путь, параметры и данные Telegram сохраняются);
+`data/` там продолжает обновляться для внешних скриптов. Установленное приложение со старого адреса само уйдёт на новый
+(его service worker снимается) — пуши на новом адресе нужно включить заново.
 
 
 Дважды в день (≈08:00 и ≈16:00 МСК) присылает в Telegram:

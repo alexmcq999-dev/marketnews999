@@ -39,9 +39,22 @@ jobs:
 
       - name: Choose mode
         id: mode
+        env:
+          # Cloudflare Pages включается, когда заданы секреты CLOUDFLARE_API_TOKEN и CLOUDFLARE_ACCOUNT_ID
+          CF_ON: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          CF_PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mcqcryptonews' }}
+          CUSTOM_URL: ${{ vars.WEBAPP_URL }}
         run: |
           owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
-          echo "WEBAPP_URL=https://${owner}.github.io/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_ENV"
+          gh_url="https://${owner}.github.io/${GITHUB_REPOSITORY#*/}/"
+          echo "WEBAPP_URL_OLD=$gh_url" >> "$GITHUB_ENV"
+          echo "CF_ON=$CF_ON" >> "$GITHUB_ENV"
+          echo "CF_PROJECT=$CF_PROJECT" >> "$GITHUB_ENV"
+          if [ -n "$CUSTOM_URL" ]; then url="${CUSTOM_URL%/}/"
+          elif [ "$CF_ON" = "true" ]; then url="https://${CF_PROJECT}.pages.dev/"
+          else url="$gh_url"; fi
+          echo "WEBAPP_URL=$url" >> "$GITHUB_ENV"
+          echo "Адрес приложения: $url"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "15 * * * *" ]; then
@@ -73,11 +86,26 @@ jobs:
           done
           python bot.py --mode ${{ steps.mode.outputs.mode }} --export site
 
-      # Публикация мини-приложения. Если GitHub Pages ещё не включён — дайджест всё равно уходит.
+      # Основной хостинг — Cloudflare Pages (если заданы секреты). Ошибка публикации не ломает рассылку.
+      - name: Deploy to Cloudflare Pages
+        if: env.CF_ON == 'true'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages project list 2>/dev/null | grep -qw "$CF_PROJECT" \
+            || npx --yes wrangler@4 pages project create "$CF_PROJECT" --production-branch=main
+          npx --yes wrangler@4 pages deploy site --project-name="$CF_PROJECT" --branch=main --commit-dirty=true
+
+      # GitHub Pages: до переезда — само приложение, после — переадресация на новый адрес (+ data/ для внешних скриптов)
+      - name: Old address → redirect
+        if: env.CF_ON == 'true'
+        run: python tools/redirect_site.py site ghp "$WEBAPP_URL" "/${GITHUB_REPOSITORY#*/}/"
       - uses: actions/configure-pages@v5
         continue-on-error: true
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: ${{ env.CF_ON == 'true' && 'ghp' || 'site' }}
       - uses: actions/deploy-pages@v4
         continue-on-error: true

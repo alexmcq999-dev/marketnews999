@@ -804,16 +804,17 @@ def previous_app() -> dict:
     """Последняя опубликованная версия данных приложения (кэшируется на запуск)."""
     if "prev_app" in LAST:
         return LAST["prev_app"]
-    url = (os.getenv("WEBAPP_URL") or "").rstrip("/")
     d = {}
-    if url:
+    # после переезда на новый адрес первые данные ещё лежат на старом — пробуем оба
+    for url in dict.fromkeys(u.rstrip("/") for u in (os.getenv("WEBAPP_URL"), os.getenv("WEBAPP_URL_OLD")) if u):
         try:
             r = requests.get(url + "/data/app.json", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT,
                              params={"t": int(time.time())})
             r.raise_for_status()
             d = r.json()
+            break
         except Exception as e:  # noqa: BLE001
-            print(f"[app] не удалось взять прошлые данные: {e}", file=sys.stderr)
+            print(f"[app] не удалось взять прошлые данные с {url}: {e}", file=sys.stderr)
     LAST["prev_app"] = d
     return d
 

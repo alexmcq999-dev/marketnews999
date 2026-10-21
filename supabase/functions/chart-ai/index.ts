@@ -77,7 +77,7 @@ async function llm(messages: unknown[]) {
     try {
       const r = await fetch(`${base}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://alexmcq999-dev.github.io/marketnews999/", "X-Title": "McQ Pro Chart" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://mcqcryptonews.pages.dev/", "X-Title": "McQ Pro Chart" },
         // reasoning-модели (Claude 5.x, GPT-6 и т.п.) тратят часть max_tokens на «размышления» — даём запас и просим думать коротко
         body: JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 4000, reasoning: { effort: "low", exclude: true }, response_format: { type: "json_object" } }),
       });
