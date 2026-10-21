@@ -1,16 +1,35 @@
 """Старый адрес (GitHub Pages) после переезда на Cloudflare Pages.
 
-python tools/redirect_site.py site ghp https://mcqcryptonews.pages.dev/
+python tools/redirect_site.py site ghp https://mcqcryptonews.pages.dev/ /marketnews999/
 
-• любая страница старого адреса → тот же путь, query и #hash на новом адресе (в Telegram в #hash лежат данные входа);
-• data/ копируется как есть — внешние скрипты (бот сигналов) продолжают читать data/app.json по старой ссылке;
-• sw.js чистит кэш установленного приложения и снимает себя, чтобы старый PWA тоже ушёл на новый адрес.
+• Внутри Telegram мини-приложение остаётся на старом адресе: Telegram связывает мини-приложение с адресом,
+  с которого его открыли (кнопки в старых сообщениях, меню), и после перехода на другой домен часть клиентов
+  перестаёт принимать команды приложения (openLink, «Назад», оплата). Поэтому здесь лежит полная копия приложения.
+• Всех остальных (браузер, установленное приложение) страница сразу переводит на новый адрес —
+  путь, параметры и #hash сохраняются.
+• sw.js снимает себя и чистит кэш, чтобы установленное со старого адреса приложение тоже ушло на новый.
+• data/ лежит как есть — внешние скрипты читают data/app.json по старой ссылке.
 """
 import html
 import json
 import os
+import re
 import shutil
 import sys
+
+# в Telegram данные запуска приходят в #tgWebAppData=… (или уже сохранены telegram-web-app.js в sessionStorage)
+GO = """<script>
+(function () {{
+  var always = {always_js};
+  var inTG = /tgWebApp/.test(location.hash) || /tgWebApp/.test(location.search);
+  try {{ inTG = inTG || !!sessionStorage.getItem("__telegram__initParams"); }} catch (e) {{}}
+  if (inTG && !always) return;
+  var to = {url_js}, base = {base_js}, p = location.pathname;
+  var rest = p.indexOf(base) === 0 ? p.slice(base.length) : p.replace(/^\\//, "");
+  if (rest === "index.html") rest = "";
+  location.replace(to + rest + location.search + location.hash);
+}})();
+</script>"""
 
 PAGE = """<!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
@@ -18,16 +37,7 @@ PAGE = """<!doctype html>
 <meta name="robots" content="noindex">
 <title>McQCryptoNews переехал</title>
 <link rel="canonical" href="{url_attr}">
-<script>
-(function () {{
-  var to = {url_js};
-  var base = {base_js};
-  var p = location.pathname;
-  var rest = p.indexOf(base) === 0 ? p.slice(base.length) : p.replace(/^\\//, "");
-  if (rest === "index.html") rest = "";
-  location.replace(to + rest + location.search + location.hash);
-}})();
-</script>
+{go}
 <style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#fafafa;
 font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:24px}}
 a{{color:#f5c451}}</style>
@@ -52,18 +62,29 @@ def main(site: str, out: str, url: str, base: str) -> None:
     base = "/" + base.strip("/") + "/" if base.strip("/") else "/"
     if os.path.isdir(out):
         shutil.rmtree(out)
-    os.makedirs(out)
-    page = PAGE.format(url_attr=html.escape(url, quote=True), url_js=json.dumps(url), base_js=json.dumps(base),
+    shutil.copytree(site, out)
+    go = GO.format(url_js=json.dumps(url), base_js=json.dumps(base), always_js="false")
+    go_always = GO.format(url_js=json.dumps(url), base_js=json.dumps(base), always_js="true")
+    # приложение: переадресация для всех, кроме Telegram — первым скриптом в <head>
+    idx = os.path.join(out, "index.html")
+    with open(idx, encoding="utf-8") as f:
+        s = f.read()
+    s, n = re.subn(r"(<meta charset=[^>]*>)", lambda m: m.group(1) + "\n" + go, s, count=1)
+    if not n:
+        s, n = re.subn(r"(<head[^>]*>)", lambda m: m.group(1) + "\n" + go, s, count=1)
+    if not n:
+        raise SystemExit("index.html: нет <head>")
+    with open(idx, "w", encoding="utf-8") as f:
+        f.write(s)
+    page = PAGE.format(url_attr=html.escape(url, quote=True), go=go_always,
                        host=html.escape(url.split("//", 1)[-1].rstrip("/")))
-    for name in ("index.html", "404.html", "privacy.html"):
+    for name in ("404.html", "privacy.html"):
         with open(os.path.join(out, name), "w", encoding="utf-8") as f:
             f.write(page)
     with open(os.path.join(out, "sw.js"), "w", encoding="utf-8") as f:
         f.write(SW)
-    if os.path.isdir(os.path.join(site, "data")):
-        shutil.copytree(os.path.join(site, "data"), os.path.join(out, "data"))
     open(os.path.join(out, ".nojekyll"), "w").close()
-    print(f"redirect site: {out} → {url} (base {base})")
+    print(f"old address: {out} → {url} (base {base}); Telegram stays on the old address")
 
 
 if __name__ == "__main__":

@@ -1102,7 +1102,7 @@
     box.innerHTML = h;
     box.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
       const a = b.dataset.act;
-      if (a === "open") openLink(appUrl + "?install=1");
+      if (a === "open") openLink((CFG.appUrl || appUrl).replace(/\/?$/, "/") + "?install=1");   // всегда основной адрес приложения
       else if (a === "install" && installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) { /* noop */ } installEvt = null; }
       else if (a === "push") await enablePush();
       else if (a.startsWith("hide-")) LS.set("amq-promo-" + a.slice(5), "1");
