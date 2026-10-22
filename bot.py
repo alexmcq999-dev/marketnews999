@@ -990,26 +990,39 @@ def send(text: str) -> None:
     chat_ids = [c.strip() for c in (os.getenv("TELEGRAM_CHAT_ID") or "").split(",") if c.strip()]
     if not chat_ids:
         raise SystemExit("ОШИБКА: секрет TELEGRAM_CHAT_ID не задан (Settings → Secrets and variables → Actions)")
+    sent = 0
     for cid in chat_ids:
-        # личный чат — кнопка web_app; канал (@имя или -100…) и группа — кнопка-ссылка
-        markup = channel_markup() if cid.startswith(("@", "-")) else webapp_markup()
-        chunks = split_message(text)
-        for n, chunk in enumerate(chunks):
-            extra = {"reply_markup": markup} if markup and n == len(chunks) - 1 else {}
-            try:
-                tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
-                   link_preview_options={"is_disabled": True}, **extra)
-            except RuntimeError as e:
-                if extra and "button" in str(e).lower():
-                    print(f"кнопка не принята в {cid} ({e}), отправляю без неё", file=sys.stderr)
-                    tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML", link_preview_options={"is_disabled": True})
-                    continue
-                if "parse" not in str(e).lower():
-                    raise
-                print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
-                plain = html.unescape(re.sub(r"<[^>]+>", "", chunk))
-                tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True}, **extra)
-            time.sleep(0.5)
+        try:
+            _send_one(cid, text)
+            sent += 1
+        except Exception as e:  # noqa: BLE001
+            # один неверный чат (например, канал без бота-админа) не должен ломать рассылку и обновление приложения
+            print(f"::warning title=Telegram::Не удалось отправить в {cid}: {e}. Проверь, что канал публичный, "
+                  f"адрес верный, а бот — администратор с правом публикации.", flush=True)
+    if not sent:
+        raise SystemExit("ОШИБКА: дайджест не отправлен ни в один чат (TELEGRAM_CHAT_ID)")
+
+
+def _send_one(cid: str, text: str) -> None:
+    # личный чат — кнопка web_app; канал (@имя или -100…) и группа — кнопка-ссылка
+    markup = channel_markup() if cid.startswith(("@", "-")) else webapp_markup()
+    chunks = split_message(text)
+    for n, chunk in enumerate(chunks):
+        extra = {"reply_markup": markup} if markup and n == len(chunks) - 1 else {}
+        try:
+            tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
+               link_preview_options={"is_disabled": True}, **extra)
+        except RuntimeError as e:
+            if extra and "button" in str(e).lower():
+                print(f"кнопка не принята в {cid} ({e}), отправляю без неё", file=sys.stderr)
+                tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML", link_preview_options={"is_disabled": True})
+                continue
+            if "parse" not in str(e).lower():
+                raise
+            print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
+            plain = html.unescape(re.sub(r"<[^>]+>", "", chunk))
+            tg("sendMessage", chat_id=cid, text=plain, link_preview_options={"is_disabled": True}, **extra)
+        time.sleep(0.5)
 
 
 def get_chat_ids() -> None:
