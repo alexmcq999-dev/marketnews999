@@ -98,6 +98,8 @@
     let actions = "";
     if (state === "wait") {
       actions = `<div class="pro-wait"><i class="pro-spin"></i><span>${esc(_t("Ждём подтверждение оплаты…"))}</span></div>
+        ${S.payLink ? `<a class="pro-alt pro-link" href="${esc(S.payLink.href)}" target="_blank" rel="noopener">${esc(S.payLink.label)}</a>
+        <p class="pro-note">${esc(_t("Если счёт не открылся сам — нажми на кнопку выше."))}</p>` : ""}
         <button class="pro-alt" data-pro="check">${esc(_t("Я оплатил — проверить"))}</button>`;
     } else if (state === "done" || state === "trial-done") {
       actions = `<button class="pro-cta" data-pro="close">${esc(_t("Отлично"))}</button>`;
@@ -118,6 +120,7 @@
       actions = btns.length ? btns.join("") + (c.usdt ? `<p class="pro-note">${esc(_t("USDT — через @CryptoBot: из кошелька Telegram или с биржи. Доступ откроется сразу после оплаты, в том числе в Telegram."))}</p>` : "")
         : (auto ? "" : `<p class="pro-note">${esc(_t("Оплата скоро появится."))}</p>`);
     }
+    if (!inTG && A.user && c.stars && !auto && !S.starsUrl && !state) call("stars", true).then((d) => { S.starsUrl = d.url; }).catch(() => null);
     const terms = `<a class="pro-terms" href="privacy.html" target="_blank" rel="noopener">${esc(_t("Условия и конфиденциальность"))}</a>`;
     if (state === "trial-done") status = `<div class="pro-status trial"><b>${esc(_t("PRO открыт"))}</b> · ${esc(_t("до"))} ${esc(fmtDate(A.planUntil))}
       <small>${esc(_t("Без оплаты. Когда пробный период закончится, PRO просто выключится — ничего не спишется. Оформить подписку можно в профиле."))}</small></div>`;
@@ -156,13 +159,18 @@
           else if (status === "failed") { S.err = _t("Оплата не прошла. Попробуй ещё раз."); render("err"); }
         });
       } else if (k === "stars-web") {
-        const { url } = await call("stars", true);
-        window.open(url, "_blank", "noopener");
+        // счёт открываем в приложении Telegram: tg://invoice?slug=… (из t.me/$slug); ссылка t.me — запасной вариант
+        const url = S.starsUrl || (await call("stars", true)).url;
+        const slug = (/t\.me\/(?:\$|invoice\/)([\w-]+)/.exec(url) || [])[1];
+        const deep = slug ? `tg://invoice?slug=${slug}` : url;
+        S.payLink = { href: url, label: _t("Открыть счёт в Telegram") };
         render("wait"); waitPaid();
+        location.href = deep;
       } else if (k === "usdt") {
         const w = window.open("about:blank", "_blank");     // открываем сразу — иначе Safari блокирует всплывающее окно
         const d = await call("usdt", true);
-        if (w) w.location.href = d.url; else location.href = d.url;
+        S.payLink = { href: d.url, label: _t("Открыть счёт @CryptoBot") };
+        if (w && !w.closed) { try { w.location.href = d.url; } catch (e) { /* PWA на iOS — остаётся ссылка */ } }
         render("wait"); waitPaid();
       }
     } catch (err) {
@@ -196,6 +204,7 @@
     const A = window.AUTH;
     if (A && A.loadPlan) await A.loadPlan();
     S.untilAtStart = A ? A.planUntil : null;
+    S.payLink = null;
     await render();
     el.hidden = false;
     document.documentElement.classList.add("pro-open");

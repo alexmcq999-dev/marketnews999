@@ -1347,3 +1347,4 @@ html.is-pro .profile-btn::after { content: ""; position: absolute; right: -3px; 
 html.is-pro .pro-status { background: rgba(245,196,81,.09); border-color: rgba(245,196,81,.4); }
 html.is-pro .pro-status b { color: #f5c451; }
 @media (prefers-reduced-motion: reduce) { html.is-pro .pro-badge { animation: none; } }
+.pro-link { text-decoration: none; box-sizing: border-box; }
