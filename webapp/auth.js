@@ -108,6 +108,7 @@
       ${AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
       <button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>
       <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
+      <button data-pf="tour">${esc(t("Как пользоваться"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
       ${inTG ? "" : `<button data-pf="logout" class="danger">${esc(t("Выйти"))}</button>`}`;
     sheet.querySelectorAll("[data-pf]").forEach((b) => b.addEventListener("click", async () => {
@@ -115,6 +116,7 @@
       if (b.dataset.pf === "refresh") { const r = $("#refresh"); if (r) r.click(); }
       if (b.dataset.pf === "journal" && window.Journal) window.Journal.open();
       if (b.dataset.pf === "pro" && window.Pro) window.Pro.open();
+      if (b.dataset.pf === "tour" && window.Tour) window.Tour.start();
       if (b.dataset.pf === "logout") { await AUTH.sb.auth.signOut(); }
     }));
   }
