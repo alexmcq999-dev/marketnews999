@@ -928,6 +928,30 @@ def webapp_markup() -> dict | None:
     return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "web_app": {"url": url}}]]}
 
 
+_BOT_USERNAME: list = []
+
+
+def bot_username() -> str:
+    if not _BOT_USERNAME:
+        try:
+            _BOT_USERNAME.append(tg("getMe").get("username") or "")
+        except Exception as e:  # noqa: BLE001
+            print(f"[tg] getMe: {e}", file=sys.stderr)
+            _BOT_USERNAME.append("")
+    return _BOT_USERNAME[0]
+
+
+def channel_markup() -> dict | None:
+    """Каналы и группы не принимают кнопки web_app — даём обычную ссылку, которая открывает мини-приложение бота."""
+    url = (os.getenv("CHANNEL_APP_URL") or "").strip()
+    if not url and bot_username():
+        url = f"https://t.me/{bot_username()}?startapp=channel"
+    url = url or (os.getenv("WEBAPP_URL") or "").strip()
+    if not url:
+        return None
+    return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "url": url}]]}
+
+
 def setup_menu_button() -> None:
     url = (os.getenv("WEBAPP_URL") or "").strip()
     if not url:
@@ -966,8 +990,9 @@ def send(text: str) -> None:
     chat_ids = [c.strip() for c in (os.getenv("TELEGRAM_CHAT_ID") or "").split(",") if c.strip()]
     if not chat_ids:
         raise SystemExit("ОШИБКА: секрет TELEGRAM_CHAT_ID не задан (Settings → Secrets and variables → Actions)")
-    markup = webapp_markup()
     for cid in chat_ids:
+        # личный чат — кнопка web_app; канал (@имя или -100…) и группа — кнопка-ссылка
+        markup = channel_markup() if cid.startswith(("@", "-")) else webapp_markup()
         chunks = split_message(text)
         for n, chunk in enumerate(chunks):
             extra = {"reply_markup": markup} if markup and n == len(chunks) - 1 else {}
@@ -975,6 +1000,10 @@ def send(text: str) -> None:
                 tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML",
                    link_preview_options={"is_disabled": True}, **extra)
             except RuntimeError as e:
+                if extra and "button" in str(e).lower():
+                    print(f"кнопка не принята в {cid} ({e}), отправляю без неё", file=sys.stderr)
+                    tg("sendMessage", chat_id=cid, text=chunk, parse_mode="HTML", link_preview_options={"is_disabled": True})
+                    continue
                 if "parse" not in str(e).lower():
                     raise
                 print(f"HTML не принят ({e}), отправляю простым текстом", file=sys.stderr)
