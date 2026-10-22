@@ -1038,11 +1038,13 @@
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; renderPromo(); });
   window.addEventListener("appinstalled", () => { installEvt = null; LS.set("amq-installed", "1"); renderPromo(); });
 
-  let pushState = "off";  // off | on | denied | unsupported
+  let pushState = "loading";  // loading | off | on | denied | unsupported | need-install
   function initPush() {
     if (inTG || !CFG.onesignal || !("Notification" in window)) { pushState = "unsupported"; return; }
     if (isIOS && !standalone) { pushState = "need-install"; return; }
     window.OneSignalDeferred = window.OneSignalDeferred || [];
+    // если SDK не загрузился за 12 с — всё равно даём кнопку: разрешение спросим напрямую у браузера
+    setTimeout(() => { if (pushState === "loading") { pushState = Notification.permission === "granted" ? "on" : Notification.permission === "denied" ? "denied" : "off"; renderPromo(); } }, 12000);
     const sc = document.createElement("script");
     sc.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
     sc.defer = true;
@@ -1062,18 +1064,33 @@
         window.__os = OneSignal;
         // персональные пуши: связываем подписку с аккаунтом
         if (window.AUTH && window.AUTH.enabled) window.AUTH.onUser((u) => { try { OneSignal.login(u.id); } catch (e) { /* noop */ } });
-      } catch (e) { pushState = "unsupported"; renderPromo(); }
+      } catch (e) { console.warn("OneSignal init", e); pushState = "unsupported"; renderPromo(); }
     });
   }
-  async function enablePush() {
+  async function enablePush(btn) {
     haptic();
+    if (Notification.permission === "denied") {
+      toast(isIOS ? _t("Уведомления запрещены. Включи их: Настройки iPhone → Уведомления → McQ.") : _t("Уведомления запрещены в браузере. Разреши их в настройках сайта (значок замка в адресной строке)."));
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = "…"; }
     const OS = window.__os;
-    if (!OS) return;
     try {
-      await OS.Notifications.requestPermission();
-      await OS.User.PushSubscription.optIn();
-      OS.User.addTags({ lang: I18.lang, mode: state.mode });
+      if (OS) {
+        // запрос разрешения — сразу по нажатию (iOS принимает его только так)
+        await OS.Notifications.requestPermission();
+        await OS.User.PushSubscription.optIn();
+        try { OS.User.addTags({ lang: I18.lang, mode: state.mode }); } catch (e) { /* noop */ }
+      } else {
+        // SDK ещё не готов — спрашиваем браузер напрямую, подписку OneSignal оформит при загрузке (autoResubscribe)
+        const p = await Notification.requestPermission();
+        if (p === "granted") pushState = "on";
+      }
     } catch (e) { /* пользователь отказал */ }
+    const perm = Notification.permission;
+    if (perm === "granted") { pushState = "on"; toast(_t("Уведомления включены ✓")); }
+    else if (perm === "denied") { pushState = "denied"; }
+    renderPromo();
   }
 
   function renderPromo() {
@@ -1104,7 +1121,7 @@
       const a = b.dataset.act;
       if (a === "open") { installSheet(); return; }
       else if (a === "install" && installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (e) { /* noop */ } installEvt = null; }
-      else if (a === "push") await enablePush();
+      else if (a === "push") await enablePush(b);
       else if (a.startsWith("hide-")) LS.set("amq-promo-" + a.slice(5), "1");
       renderPromo();
     }));
