@@ -2,7 +2,7 @@
    • Пользователь подключает биржу read-only ключом (или адресом кошелька для Hyperliquid).
    • Ключи хранятся ТОЛЬКО на этом устройстве: IndexedDB, зашифрованы AES-GCM неизвлекаемым ключом браузера.
      Запросы к биржам подписываются прямо на устройстве (WebCrypto), секрет никуда не отправляется.
-   • BingX не разрешает запросы из браузера — для неё запрос подписывается на устройстве и пересылается
+   • BingX и Bitunix не разрешают запросы из браузера — для них запрос подписывается на устройстве и пересылается
      через функцию Supabase exchange-relay (она видит только публичный API key и одноразовую подпись).
    • Сделки собираются в закрытые позиции, считается сводка: PnL, win rate, profit factor, просадка,
      разрезы по монетам/сторонам/часам, авто-выводы. ИИ-разбор торговли — функция chart-ai (kind: journal). */
@@ -349,6 +349,62 @@
     },
   };
 
+  // ---------- Bitunix (через пересылку exchange-relay: Bitunix тоже не разрешает запросы из браузера)
+  // подпись: sign = SHA256(SHA256(nonce + timestamp + apiKey + queryParams + body) + secret); queryParams — ключи по алфавиту, «ключзначение» подряд
+  async function sha256hex(str) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(str)))].map((x) => x.toString(16).padStart(2, "0")).join(""); }
+  async function relay(body, needLogin) {
+    if (!CFG.supabaseUrl || !window.AUTH || !window.AUTH.sb) throw new Error(needLogin);
+    const sess = (await window.AUTH.sb.auth.getSession()).data.session;
+    if (!sess) throw new Error(needLogin);
+    return getJSON(`${CFG.supabaseUrl}/functions/v1/exchange-relay`, {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey, Authorization: `Bearer ${sess.access_token}` },
+      body: JSON.stringify(body),
+    });
+  }
+  EX.bitunix = {
+    name: "Bitunix", fields: ["key", "secret"],
+    help: ["Bitunix → Профиль → API Management → Create API", "Разрешения: только чтение (Read). Торговлю и вывод не включай", "Скопируй API Key и Secret Key сюда"],
+    async req(c, path, params) {
+      const p = {};
+      Object.keys(params || {}).sort().forEach((k) => { if (params[k] !== undefined && params[k] !== null && params[k] !== "") p[k] = String(params[k]); });
+      const sorted = Object.keys(p).map((k) => k + p[k]).join("");
+      const nonce = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      const timestamp = String(Date.now() + (c._off || 0));
+      const sign = await sha256hex((await sha256hex(nonce + timestamp + c.key + sorted)) + c.secret);
+      const q = Object.keys(p).map((k) => `${k}=${encodeURIComponent(p[k])}`).join("&");
+      const url = `https://fapi.bitunix.com${path}${q ? "?" + q : ""}`;
+      const r = await relay({ url, headers: { "api-key": c.key, nonce, timestamp, sign } }, _t("Для Bitunix нужен вход в аккаунт."));
+      const d = r.body;
+      if (!d || +d.code !== 0) throw new Error((d && (d.msg || d.message)) || `Bitunix ${r.status}`);
+      return d.data;
+    },
+    async check(c) { await this.req(c, "/api/v1/futures/account", { marginCoin: "USDT" }); return {}; },
+    async equity(c) {
+      const a = await this.req(c, "/api/v1/futures/account", { marginCoin: "USDT" });
+      const x = Array.isArray(a) ? a[0] || {} : a || {};
+      const v = (+x.available || 0) + (+x.frozen || 0) + (+x.margin || 0) + (+x.crossUnrealizedPNL || 0) + (+x.isolationUnrealizedPNL || 0);
+      return v || null;
+    },
+    async sync(c, from, to, progress) {
+      const out = [];
+      // фильтр биржи — по времени ОТКРЫТИЯ позиции, поэтому берём с запасом и отбираем закрытые в окне
+      for (let skip = 0, page = 0; page < 60; page++, skip += 100) {
+        const r = await this.req(c, "/api/v1/futures/position/get_history_positions", { startTime: from - 60 * DAY, endTime: to, skip, limit: 100 });
+        const list = (r && (r.positionList || r.list)) || (Array.isArray(r) ? r : []);
+        for (const x of list) {
+          const qty = +x.maxQty || +x.qty || 0, fee = Math.abs(+x.fee || 0), funding = +x.funding || 0, gross = +x.realizedPNL || 0;
+          out.push({ id: `bitunix:${x.positionId}`, ex: "bitunix", sym: baseSym(x.symbol), side: String(x.side).toUpperCase() === "SHORT" ? "short" : "long", qty,
+            entry: +x.entryPrice, exit: +x.closePrice, notional: +x.entryPrice * qty, gross, fee, funding, pnl: gross - fee + funding,
+            openT: +x.ctime, closeT: +x.mtime, lev: +x.leverage || null, open: false, liq: +x.liqQty > 0 });
+        }
+        progress && progress(Math.min(0.95, (page + 1) / 6));
+        if (list.length < 100) break;
+        await sleep(150);
+      }
+      return out.filter((x) => x.closeT >= from && x.closeT <= to);
+    },
+  };
+
   // ---------- Hyperliquid: только адрес кошелька, ключи не нужны
   EX.hyperliquid = {
     name: "Hyperliquid", fields: ["address"],
@@ -381,7 +437,7 @@
       return buildPositions(fills, "hyperliquid", fundingOf);
     },
   };
-  const EX_ORDER = ["binance", "bybit", "okx", "bingx", "hyperliquid"];
+  const EX_ORDER = ["binance", "bybit", "okx", "bingx", "bitunix", "hyperliquid"];
 
   // ================================================================ аналитика
   function stats(trades) {
@@ -865,7 +921,7 @@
         <form id="jr-form" autocomplete="off">${E.fields.map((f) => `<label><span>${esc(labels[f])}</span><input id="jr-f-${f}" name="${f}" ${f === "address" || f === "key" ? 'type="text"' : 'type="password"'} autocomplete="off" autocapitalize="off" spellcheck="false" required></label>`).join("")}
           <p class="jr-err" id="jr-err"></p>
           <button type="submit" class="jr-go">${esc(_t("Подключить"))}</button>
-          <small class="jr-note-s">${esc(_t("Ключ сохранится только на этом устройстве в зашифрованном виде."))}${ex === "bingx" ? " " + esc(_t("BingX не разрешает запросы из браузера, поэтому подписанный на устройстве запрос пересылается через наш сервер; секретный ключ при этом не передаётся.")) : ""}</small>
+          <small class="jr-note-s">${esc(_t("Ключ сохранится только на этом устройстве в зашифрованном виде."))}${ex === "bingx" ? " " + esc(_t("BingX не разрешает запросы из браузера, поэтому подписанный на устройстве запрос пересылается через наш сервер; секретный ключ при этом не передаётся.")) : ex === "bitunix" ? " " + esc(_t("Bitunix не разрешает запросы из браузера, поэтому подписанный на устройстве запрос пересылается через наш сервер; секретный ключ при этом не передаётся.")) : ""}</small>
         </form></div>`;
       sh.hidden = false;
       $("#jr-form").addEventListener("submit", async (e) => {
