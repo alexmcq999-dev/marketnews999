@@ -1326,3 +1326,24 @@ html, body { overflow-x: clip; }
 .pro-price span { color: #f5c451; font-weight: 700; }
 .pro-status.trial { background: rgba(245,196,81,.08); border-color: rgba(245,196,81,.32); }
 .pro-status.trial b { color: #f5c451; }
+
+/* ---------------------------------------------------------------- золотой статус McQ PRO (оплаченная подписка) */
+html.is-pro .pro-badge {
+  display: inline-block; order: 2; font: 800 10px/1 var(--font); letter-spacing: .12em; padding: 4px 6px; border-radius: 6px; color: #1a1205;
+  background: linear-gradient(110deg, #e0a92e 0%, #fbe08e 38%, #fff4c9 50%, #fbe08e 62%, #d99c22 100%); background-size: 220% 100%;
+  box-shadow: 0 0 0 .5px rgba(255,236,170,.6), 0 2px 10px rgba(245,196,81,.45); animation: pro-shine 4.5s ease-in-out infinite;
+}
+html.is-pro .pro-badge { position: absolute; left: 22px; top: 30px; z-index: 3; font-size: 8.5px; padding: 3px 5px; border-radius: 5px; }
+@keyframes pro-shine { 0%, 60% { background-position: 100% 0; } 100% { background-position: -20% 0; } }
+html.is-pro .profile-btn { box-shadow: 0 0 0 2px #0b0b0b, 0 0 0 3.5px #f5c451, 0 0 16px rgba(245,196,81,.45); overflow: visible; }
+html.is-pro .profile-btn img, html.is-pro .profile-btn i { border-radius: 50%; }
+html.is-pro .profile-btn::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; z-index: 4;
+  background: #f5c451 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z' fill='%231a1205'/%3E%3C/svg%3E") center / 10px no-repeat;
+  box-shadow: 0 0 0 2px #0b0b0b; }
+.pf-plan { display: flex; align-items: center; gap: 6px; }
+.pf-plan svg { width: 13px; height: 13px; flex: none; }
+.pf-plan.gold { align-self: flex-start; width: fit-content; padding: 6px 10px; border-radius: 999px; color: #1a1205;
+  background: linear-gradient(110deg, #e0a92e, #fbe08e 45%, #fff1c2 55%, #d99c22); box-shadow: 0 4px 14px rgba(245,196,81,.3); }
+html.is-pro .pro-status { background: rgba(245,196,81,.09); border-color: rgba(245,196,81,.4); }
+html.is-pro .pro-status b { color: #f5c451; }
+@media (prefers-reduced-motion: reduce) { html.is-pro .pro-badge { animation: none; } }

@@ -105,7 +105,7 @@
     btn.innerHTML = v.avatar ? `<img src="${esc(v.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><i>${ini}</i>` : `<i>${ini}</i>`;
     sheet.innerHTML = `<div class="pf-head"><span class="pf-ava">${btn.innerHTML}</span>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
-      ${AUTH.plan === "pro" ? `<div class="pf-plan">McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
+      ${AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
       <button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>
       <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
@@ -147,6 +147,14 @@
   }
   AUTH.saveSettings = () => { if (AUTH.user) saveProfile(AUTH.user); };
 
+  // золотой статус PRO — у оплаченной подписки (пробный период выглядит как обычный аккаунт)
+  function planUi() {
+    const paid = AUTH.plan === "pro" && AUTH.planSource !== "trial";
+    document.documentElement.classList.toggle("is-pro", paid);
+    const b = document.querySelector(".pro-badge");
+    if (b) b.title = paid ? "McQ PRO" : "";
+  }
+
   // подписка McQ Pro: строка в таблице subscriptions (пишет только сервер/админ, клиент лишь читает свою)
   let planReq = null;
   AUTH.plan = "free";
@@ -159,6 +167,7 @@
           AUTH.plan = ok ? "pro" : "free";
           AUTH.planUntil = ok ? data.until : null;
           AUTH.planSource = ok ? data.source || null : null;
+          planUi();
           return AUTH.plan;
         })
         .catch(() => "free");
@@ -179,7 +188,7 @@
   function setUser(u) {
     const changed = (AUTH.user && AUTH.user.id) !== (u && u.id);
     AUTH.user = u || null;
-    if (changed) { planReq = null; AUTH.plan = "free"; }
+    if (changed) { planReq = null; AUTH.plan = "free"; AUTH.planSource = null; planUi(); }
     renderProfile();
     if (u) { hideLogin(); if (changed) { saveProfile(u); AUTH.loadPlan().then(renderProfile); AUTH.listeners.forEach((fn) => { try { fn(u); } catch (e) { /* noop */ } }); } }
     else if (!inTG) showLogin();
