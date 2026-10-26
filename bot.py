@@ -932,8 +932,13 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
           f"{len(data.get('markets') or [])} котировок", file=sys.stderr)
 
 
+def tg_webapp_url() -> str:
+    """Адрес мини-приложения для кнопок Telegram (может отличаться от адреса сайта/PWA)."""
+    return (os.getenv("TG_WEBAPP_URL") or os.getenv("WEBAPP_URL") or "").strip()
+
+
 def webapp_markup() -> dict | None:
-    url = (os.getenv("WEBAPP_URL") or "").strip()
+    url = tg_webapp_url()
     if not url:
         return None
     return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "web_app": {"url": url}}]]}
@@ -957,14 +962,14 @@ def channel_markup() -> dict | None:
     url = (os.getenv("CHANNEL_APP_URL") or "").strip()
     if not url and bot_username():
         url = f"https://t.me/{bot_username()}?startapp=channel"
-    url = url or (os.getenv("WEBAPP_URL") or "").strip()
+    url = url or tg_webapp_url()
     if not url:
         return None
     return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "url": url}]]}
 
 
 def setup_menu_button() -> None:
-    url = (os.getenv("WEBAPP_URL") or "").strip()
+    url = tg_webapp_url()
     if not url:
         return
     try:

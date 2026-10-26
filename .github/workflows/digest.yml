@@ -44,6 +44,7 @@ jobs:
           CF_ON: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
           CF_PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mcqcryptonews' }}
           CUSTOM_URL: ${{ vars.WEBAPP_URL }}
+          TG_URL: ${{ vars.TG_WEBAPP_URL }}
         run: |
           owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
           gh_url="https://${owner}.github.io/${GITHUB_REPOSITORY#*/}/"
@@ -55,6 +56,11 @@ jobs:
           else url="$gh_url"; fi
           echo "WEBAPP_URL=$url" >> "$GITHUB_ENV"
           echo "Адрес приложения: $url"
+          # мини-приложение в Telegram — со старого адреса GitHub Pages (Cloudflare в России замедляют);
+          # там лежит полная копия приложения для Telegram. Свой адрес — переменная TG_WEBAPP_URL.
+          if [ -n "$TG_URL" ]; then tg="${TG_URL%/}/"; elif [ "$CF_ON" = "true" ]; then tg="$gh_url"; else tg="$url"; fi
+          echo "TG_WEBAPP_URL=$tg" >> "$GITHUB_ENV"
+          echo "Адрес мини-приложения в Telegram: $tg"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "15 * * * *" ]; then
