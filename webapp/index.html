@@ -27,6 +27,24 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="McQ">
   <!--APP_CONFIG-->
+  <script>
+    /* диагностика запуска (ES5: должна работать даже на очень старых телефонах) */
+    (function () {
+      var errs = [];
+      window.addEventListener("error", function (e) { errs.push((e.message || "error") + (e.filename ? " @" + String(e.filename).split("/").pop() + ":" + e.lineno : "")); }, true);
+      window.addEventListener("unhandledrejection", function (e) { errs.push("promise: " + (e.reason && (e.reason.message || e.reason))); });
+      setTimeout(function () {
+        if (window.__appStarted) return;
+        var tg = window.Telegram && window.Telegram.WebApp;
+        var box = document.createElement("div");
+        box.style.cssText = "position:fixed;left:16px;right:16px;bottom:24px;z-index:200;padding:14px 16px;border-radius:16px;background:#151515;color:#eee;font:13px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;border:1px solid #333";
+        box.innerHTML = "<b style='font-size:15px'>Приложение не запустилось</b><br>Пришли скриншот этого окна в поддержку.<br><small style='color:#999;word-break:break-all'>" +
+          (errs.length ? errs.slice(0, 3).map(function (x) { return String(x).replace(/</g, "&lt;"); }).join("<br>") : "нет ошибок JS") + "<br>tg: " + (tg ? tg.version + " " + tg.platform : "нет") +
+          "<br>" + navigator.userAgent.replace(/</g, "&lt;") + "</small><br><button onclick='location.reload()' style='margin-top:10px;width:100%;padding:11px;border:0;border-radius:12px;background:#fff;color:#000;font-weight:700'>Перезагрузить</button>";
+        (document.body || document.documentElement).appendChild(box);
+      }, 12000);
+    })();
+  </script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preload" href="bg.jpg" as="image">
   <link rel="stylesheet" href="style.css">

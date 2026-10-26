@@ -27,6 +27,7 @@
     }, Math.max(0, 1500 - (Date.now() - T0)));
   }
   setTimeout(hidePreloader, 7000);
+  window.__appStarted = true;   // для диагностики запуска в index.html
   const TZ = "Europe/Moscow";
   const $ = (sel) => document.querySelector(sel);
 

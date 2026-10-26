@@ -883,6 +883,17 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
             import re as _re, hashlib as _hl
             with open(idx, encoding="utf-8") as f:
                 html = f.read()
+            # скрипт Telegram Mini Apps — своя копия рядом с приложением: если telegram.org у пользователя
+            # медленный или недоступен, страница не зависает на загрузке чужого скрипта в <head>
+            try:
+                r = requests.get("https://telegram.org/js/telegram-web-app.js", headers={"User-Agent": UA}, timeout=HTTP_TIMEOUT)
+                r.raise_for_status()
+                if "Telegram" in r.text and len(r.text) > 10000:
+                    with open(os.path.join(out_dir, "telegram-web-app.js"), "w", encoding="utf-8") as fh:
+                        fh.write(r.text)
+                    html = html.replace('src="https://telegram.org/js/telegram-web-app.js"', 'src="telegram-web-app.js"')
+            except Exception as e:  # noqa: BLE001
+                print(f"[app] telegram-web-app.js не скачан, остаётся ссылка на telegram.org: {e}", file=sys.stderr)
 
             def _ver(m):
                 path = os.path.join(out_dir, m.group(2))
