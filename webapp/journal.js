@@ -520,6 +520,7 @@
   // ================================================================ форматирование
   function fmtUsd(v, sign = true) {
     if (v == null || !isFinite(v)) return "—";
+    if (Math.abs(v) < 0.005) return "$0";
     const a = Math.abs(v), s = v < 0 ? "−" : sign && v > 0 ? "+" : "";
     return `${s}$${a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e4 ? (a / 1e3).toFixed(1) + "K" : a.toLocaleString(I18.locale, { maximumFractionDigits: a >= 100 ? 0 : 2 })}`;
   }
@@ -568,7 +569,7 @@
   }
 
   // ================================================================ состояние
-  const S = { open: false, conns: [], trades: [], notes: {}, period: 30, exFilter: "all", syncing: false, demo: false, status: {}, view: "main", expanded: null };
+  const S = { open: false, conns: [], trades: [], notes: {}, exc: {}, period: 30, exFilter: "all", syncing: false, demo: false, status: {}, view: "main", expanded: null };
   try { if (localStorage.getItem("amq-jr-unit") === "pct") S.calUnit = "pct"; } catch (e) { /* noop */ }
   try { const raw = localStorage.getItem("amq-jr-period"); const p = +raw; if (raw !== null && [7, 30, 90, 0].includes(p)) S.period = p; } catch (e) { /* noop */ }
 
@@ -577,6 +578,7 @@
       S.conns = (await kvGet("conns")) || [];
       S.trades = (await kvGet("trades")) || [];
       S.notes = (await kvGet("notes")) || {};
+      S.exc = (await kvGet("exc")) || {};
     } catch (e) { S.dbError = true; }
   }
   async function saveConns() { await kvSet("conns", S.conns); }
@@ -633,17 +635,27 @@
   // Каждый виджет: заголовок · главная цифра с пояснением · маленький график · строка из 2–4 метрик.
   // Набор и порядок настраиваются («Виджеты»), сохраняются на устройстве.
   const WG_KEY = "amq-jr-wg";
-  const WIDGETS = [
-    ["pnl", "Кривая прибыли"], ["month", "Карта месяца"], ["key", "Ключевые метрики"], ["insights", "Выводы и ИИ-разбор"],
-    ["market", "Рынок сегодня"], ["mcq", "Сигналы McQ и свои сделки"], ["recent", "Последние сделки"],
-    ["risk", "Риск на сделку"], ["move", "Средний ход цены"], ["dist", "Распределение результатов"],
-    ["daily", "Результат по дням"], ["sym", "Прибыль по монетам"], ["tags", "Прибыль по тегам"],
-    ["dow", "По дням недели"], ["hour", "По часам"], ["session", "По торговым сессиям"],
-    ["hold", "Время в сделке"], ["side", "Лонг и шорт"], ["lev", "Плечо и результат"],
-    ["streak", "Серии"], ["revenge", "Сделки после убытка"], ["perday", "Сделок в день"],
-    ["fees", "Комиссии"], ["funding", "Фандинг"], ["exch", "По биржам"],
+  // разделы обзора: [id, название, пояснение]
+  const GROUPS = [
+    ["sum", "Итоги", "общий результат за период"],
+    ["mkt", "Рынок и сигналы McQ", "что происходит сейчас и как работают сигналы"],
+    ["qual", "Качество сделок", "как ты входишь и выходишь"],
+    ["risk", "Риск и дисциплина", "сколько ставишь и как ведёшь себя после убытков"],
+    ["time", "Время", "когда ты зарабатываешь и когда теряешь"],
+    ["what", "Что ты торгуешь", "монеты, теги, сторона и плечо"],
+    ["cost", "Издержки", "комиссии и фандинг"],
   ];
-  const WG_NAME = Object.fromEntries(WIDGETS);
+  const WIDGETS = [
+    ["pnl", "Кривая прибыли", "sum"], ["month", "Карта месяца", "sum"], ["key", "Ключевые метрики", "sum"], ["insights", "Выводы и ИИ-разбор", "sum"],
+    ["market", "Рынок сегодня", "mkt"], ["mcq", "Сигналы McQ и свои сделки", "mkt"],
+    ["recent", "Последние сделки", "qual"], ["exit", "Качество выхода", "qual"], ["after", "Если бы держал ещё 30 минут", "qual"], ["move", "Средний ход цены", "qual"], ["dist", "Распределение результатов", "qual"],
+    ["risk", "Риск на сделку", "risk"], ["streak", "Серии", "risk"], ["revenge", "Сделки после убытка", "risk"], ["perday", "Сделок в день", "risk"],
+    ["daily", "Результат по дням", "time"], ["dow", "По дням недели", "time"], ["hour", "По часам", "time"], ["session", "По торговым сессиям", "time"], ["hold", "Время в сделке", "time"],
+    ["sym", "Прибыль по монетам", "what"], ["tags", "Прибыль по тегам", "what"], ["side", "Лонг и шорт", "what"], ["lev", "Плечо и результат", "what"], ["exch", "По биржам", "what"],
+    ["fees", "Комиссии", "cost"], ["funding", "Фандинг", "cost"],
+  ];
+  const WG_GROUP = Object.fromEntries(WIDGETS.map((w) => [w[0], w[2]]));
+  const WG_NAME = Object.fromEntries(WIDGETS.map((w) => [w[0], w[1]]));
   function wgCfg() {
     let c = null;
     try { c = JSON.parse(localStorage.getItem(WG_KEY) || "null"); } catch (e) { /* noop */ }
@@ -954,8 +966,235 @@
 
   function overviewHtml(s) {
     const X = ext(s), cfg = wgCfg();
-    const parts = cfg.order.filter((id) => !cfg.off.includes(id)).map((id) => { try { return WG[id](s, X); } catch (e) { console.warn("widget", id, e); return ""; } }).filter(Boolean);
-    return parts.length ? `<div class="wg-grid">${parts.join("")}</div>` : `<div class="jr-empty glass"><p>${esc(_t("Все виджеты выключены — включи нужные в «Виджеты»."))}</p></div>`;
+    let h = "";
+    GROUPS.forEach(([g, title, sub]) => {
+      const parts = cfg.order.filter((id) => WG_GROUP[id] === g && !cfg.off.includes(id)).map((id) => { try { return WG[id](s, X); } catch (e) { console.warn("widget", id, e); return ""; } }).filter(Boolean);
+      if (parts.length) h += `<div class="wg-sec"><b>${esc(_t(title))}</b><small>${esc(_t(sub))}</small></div><div class="wg-grid">${parts.join("")}</div>`;
+    });
+    return h || `<div class="jr-empty glass"><p>${esc(_t("Все виджеты выключены — включи нужные в «Виджеты»."))}</p></div>`;
+  }
+
+  // ================================================================ свечи по сделке: MAE / MFE, качество выхода, график
+  // Свечи — из публичного API Binance Futures (запасной вариант — Bybit), ключ не нужен.
+  // MFE — самое выгодное движение цены за время сделки, MAE — самое невыгодное.
+  const LWC_URL = "https://cdn.jsdelivr.net/npm/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js";
+  let lwLoading = null;
+  function loadLW() {
+    if (window.LightweightCharts) return Promise.resolve();
+    if (!lwLoading) lwLoading = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = LWC_URL; sc.onload = res; sc.onerror = () => { lwLoading = null; rej(new Error("lwc")); }; document.head.appendChild(sc); });
+    return lwLoading;
+  }
+  const IVS = [["1m", 60], ["5m", 300], ["15m", 900], ["1h", 3600], ["4h", 14400]];
+  const BYB_IV = { "1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240" };
+  // интервал свечей: самый мелкий, при котором сделка с запасом по краям влезает в 1000 свечей
+  function pickIv(t, want) {
+    const hold = Math.max(60e3, (t.closeT || Date.now()) - (t.openT || t.closeT));
+    if (want) { const f = IVS.find((x) => x[0] === want); if (f) return f; }
+    return IVS.find(([, sec]) => (hold * 1.7) / (sec * 1000) + 60 <= 1000) || IVS[IVS.length - 1];
+  }
+  function tradeWindow(t, sec) {
+    const o = t.openT || t.closeT - 3600e3, c = t.closeT || Date.now(), hold = c - o;
+    const pad = Math.max(40 * sec * 1000, hold * 0.35);
+    return [Math.floor((o - pad) / 1000 / sec) * sec * 1000, Math.min(Date.now(), c + Math.max(pad, 31 * 60e3))];
+  }
+  async function fetchKlines(t, iv, sec) {
+    const [from, to] = tradeWindow(t, sec), n = Math.min(1000, Math.ceil((to - from) / (sec * 1000)) + 2);
+    const syms = [`${t.sym}USDT`, `1000${t.sym}USDT`];
+    let k = null;
+    for (const s of syms) {
+      try { const d = await getJSON(`https://fapi.binance.com/fapi/v1/klines?symbol=${s}&interval=${iv}&startTime=${from}&endTime=${to}&limit=${n}`); if (Array.isArray(d) && d.length) { k = d.map((r) => ({ t: +r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4] })); break; } } catch (e) { /* следующий вариант */ }
+    }
+    if (!k) for (const s of syms) {
+      try { const d = await getJSON(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${s}&interval=${BYB_IV[iv]}&start=${from}&end=${to}&limit=${n}`); const L = d && d.result && d.result.list; if (L && L.length) { k = L.map((r) => ({ t: +r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4] })).reverse(); break; } } catch (e) { /* нет данных */ }
+    }
+    if (!k || !t.entry) return k;
+    // масштаб: на бирже мог торговаться 1000PEPE, а свечи — PEPE (или наоборот)
+    const near = k.reduce((b, c) => (Math.abs(c.t - (t.openT || t.closeT)) < Math.abs(b.t - (t.openT || t.closeT)) ? c : b), k[0]);
+    const r = t.entry / near.c, m = r > 300 ? 1000 : r < 1 / 300 ? 1 / 1000 : 1;
+    return m === 1 ? k : k.map((c) => ({ t: c.t, o: c.o * m, h: c.h * m, l: c.l * m, c: c.c * m }));
+  }
+  // демо-сделки: правдоподобные свечи, проходящие через цены входа и выхода
+  function demoKlines(t, sec) {
+    let sd = [...String(t.id)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 2147483647, 7) || 7;
+    const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647) - 0.5;
+    const [from, to] = tradeWindow(t, sec), step = sec * 1000, o = t.openT, c = t.closeT;
+    const vol = Math.max(Math.abs(t.exit - t.entry) * 0.35, t.entry * 0.0015);
+    const pts = [];
+    const nIn = Math.max(2, Math.round((c - o) / step));
+    let w = 0; const walk = [];
+    for (let i = 0; i <= nIn; i++) { walk.push(w); w += rnd() * vol * 0.6; }
+    for (let x = from; x <= to; x += step) {
+      let p;
+      if (x <= o) p = t.entry + rnd() * vol * 0.4 + ((x - o) / step) * rnd() * vol * 0.05;
+      else if (x >= c) p = t.exit + rnd() * vol * 0.5 + ((x - c) / step) * vol * 0.02 * Math.sin(sd);
+      else { const i = Math.round((x - o) / step), f = i / nIn; p = t.entry + (t.exit - t.entry) * f + (walk[i] - f * walk[nIn]); }
+      pts.push([x, p]);
+    }
+    return pts.map(([x, p], i) => { const pr = i ? pts[i - 1][1] : p; const hi = Math.max(p, pr) + Math.abs(rnd()) * vol * 0.25, lo = Math.min(p, pr) - Math.abs(rnd()) * vol * 0.25; return { t: x, o: pr, h: hi, l: lo, c: p }; });
+  }
+  function excursion(t, k, sec) {
+    if (!k || !k.length || !t.entry || !t.exit || !t.openT || !t.closeT) return null;
+    const dir = t.side === "long" ? 1 : -1, step = sec * 1000;
+    const inK = k.filter((c) => c.t + step > t.openT && c.t <= t.closeT);
+    if (!inK.length) return null;
+    const hi = Math.max(t.entry, t.exit, ...inK.map((c) => c.h)), lo = Math.min(t.entry, t.exit, ...inK.map((c) => c.l));
+    const fav = dir > 0 ? hi : lo, adv = dir > 0 ? lo : hi, q = t.qty || (t.notional && t.entry ? t.notional / t.entry : 0);
+    const after = k.filter((c) => c.t >= t.closeT && c.t <= t.closeT + 30 * 60e3);
+    const a30 = after.length && after[after.length - 1].t >= t.closeT + 20 * 60e3 ? after[after.length - 1].c : null;
+    const move = (t.exit - t.entry) * q * dir, mfeU = (fav - t.entry) * q * dir;
+    return {
+      mfeP: ((fav - t.entry) / t.entry) * 100 * dir, maeP: ((adv - t.entry) / t.entry) * 100 * dir,
+      mfeU, maeU: (adv - t.entry) * q * dir, move, took: mfeU > 0 ? move / mfeU : null,
+      afterU: a30 != null ? (a30 - t.exit) * q * dir : null, iv: sec,
+    };
+  }
+  // фоновый расчёт для последних сделок периода; результат кэшируется на устройстве
+  async function ensureExc(list) {
+    if (S._excBusy) return;
+    const need = list.filter((t) => !t.open && t.entry && t.exit && t.openT && !(t.id in S.exc)).slice(-30);
+    if (!need.length) return;
+    S._excBusy = true;
+    try {
+      if (need[0].demo) need.forEach((t) => { const [, sec] = pickIv(t); S.exc[t.id] = excursion(t, demoKlines(t, sec), sec); });
+      else {
+        await pool(need, 3, async (t) => { const [iv, sec] = pickIv(t); try { S.exc[t.id] = excursion(t, await fetchKlines(t, iv, sec), sec); } catch (e) { S.exc[t.id] = null; } });
+        try { await kvSet("exc", S.exc); } catch (e) { /* noop */ }
+      }
+    } finally { S._excBusy = false; }
+    if (S.open && !["trades", "calendar", "trade"].includes(S.view)) { const b = $("#jr-body"), top = b ? b.scrollTop : 0; render(); if (b) b.scrollTop = top; }
+  }
+
+  Object.assign(WG, {
+    exit(s) {
+      const xs = s.closed.map((t) => S.exc[t.id]).filter((x) => x && x.mfeU > 0);
+      if (!xs.length) return wg("exit", emptyW(Object.keys(S.exc).length ? "Пока не хватает данных" : "Считаю по свечам…", "MAE и MFE считаются по свечам Binance для последних 30 сделок."));
+      const took = mean(xs.map((x) => Math.max(-1, Math.min(1, x.took)))), peak = mean(xs.map((x) => x.mfeU)), got = mean(xs.map((x) => x.move));
+      const H = 90, W = 600, yP = 8, yE = H - 8 - (H - 16) * Math.max(0, took);
+      const viz = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><line class="sv-zero" x1="0" x2="${W}" y1="${H - 8}" y2="${H - 8}" vector-effect="non-scaling-stroke"/><path class="sv-area up" d="M0 ${H - 8} C150 ${H - 8} 220 ${yP} 330 ${yP} S480 ${yE} ${W} ${yE} L${W} ${H - 8} Z"/><path class="sv-line up" d="M0 ${H - 8} C150 ${H - 8} 220 ${yP} 330 ${yP} S480 ${yE} ${W} ${yE}"/></svg><div class="sv-xe"><span>${esc(_t("Вход"))}</span><span>${esc(_t("Пик"))} · 100%</span><span>${esc(_t("Выход"))}</span></div>`;
+      return wg("exit", big(_t("Какую часть хода ты забираешь"), `${Math.round(took * 100)}%`, took >= 0.5 ? "up" : took < 0.25 ? "down" : "", `${xs.length} ${esc(tradesWord(xs.length))} · ${esc(_t("от входа до лучшей цены в сделке"))}`)
+        + `<div class="wg-viz">${viz}</div>`
+        + foot([[fmtUsd(peak), "Пик в среднем", "up"], [fmtUsd(got), "Забрал в среднем", cls(got)], [fmtUsd(got - peak), "Оставил на столе", "down"], [pctS(mean(xs.map((x) => x.maeP)), 2), "Против тебя (MAE)", "down"]]));
+    },
+    after(s) {
+      const xs = s.closed.map((t) => S.exc[t.id]).filter((x) => x && x.afterU != null);
+      if (!xs.length) return wg("after", emptyW(Object.keys(S.exc).length ? "Пока не хватает данных" : "Считаю по свечам…", "Сравниваем цену выхода с ценой через 30 минут."));
+      const sum = xs.reduce((a, x) => a + x.afterU, 0), early = xs.filter((x) => x.afterU > 0).length;
+      const best = Math.max(...xs.map((x) => x.afterU)), worst = Math.min(...xs.map((x) => x.afterU));
+      return wg("after", big(_t("Результат изменился бы на"), fmtUsd(sum), cls(sum), esc(_t(sum > 0 ? "ты выходишь рановато — цена шла дальше в твою сторону" : "выходы вовремя — дальше цена шла против тебя")))
+        + foot([[`${early} ${esc(_t("из"))} ${xs.length}`, "Выход был ранним"], [fmtUsd(best), "Упущено максимум", best > 0 ? "up" : ""], [worst < 0 ? fmtUsd(-worst) : "$0", "Сэкономил выходом максимум", worst < 0 ? "up" : ""]], "c3"));
+    },
+  });
+
+  // ---------------------------------------------------------------- страница сделки
+  let tpChart = null;
+  function tradePageHtml(t) {
+    const dir = t.side === "long" ? 1 : -1, x = S.exc[t.id], q = t.qty || 0;
+    const pct = t.notional ? (t.pnl / t.notional) * 100 : null, diffP = t.entry && t.exit ? ((t.exit - t.entry) / t.entry) * 100 * dir : null;
+    const sess = t.openT ? _t(SESS[sessOf(t)][0]) : "—";
+    const all = (S.demo ? (S._demo || []) : S.trades).filter((y) => y.id !== t.id && y.sym === t.sym && !y.open).sort((a, b) => b.closeT - a.closeT).slice(0, 5);
+    const n = S.notes[t.id] || {};
+    const ivNow = S.tpIv || "";
+    let h = `<div class="tp-h"><button class="jr-tool" data-j="tp-back">‹ ${esc(_t("Назад"))}</button>
+      <div class="tp-t"><b>${esc(t.sym)}</b><small>/USDT · ${esc(EX[t.ex] ? EX[t.ex].name.replace(" Futures", "") : t.ex)}</small><span class="sd ${t.side === "long" ? "L" : "S"}">${t.side === "long" ? "LONG" : "SHORT"}</span>${t.lev ? `<span class="tp-lev">×${t.lev}</span>` : ""}</div>
+      <div class="tp-r"><b class="${cls(t.pnl)}">${t.open ? "—" : fmtUsd(t.pnl)}</b><small class="${cls(t.pnl)}">${pct == null || t.open ? "" : pctS(pct, 2)}</small></div></div>`;
+    h += `<div class="wg-grid tp-grid">
+      <section class="wg w2 tp-chart"><div class="tp-tf">${[["", "Авто"], ...IVS.map(([k]) => [k, k])].map(([k, l]) => `<button class="${ivNow === k ? "on" : ""}" data-j="tp-iv" data-v="${k}">${esc(_t(l))}</button>`).join("")}<span class="grow"></span><small id="tp-src"></small></div><div id="tp-chart" class="tp-cv"><span class="pc-spin"></span></div></section>
+      <section class="wg"><header class="wg-h"><b>${esc(_t("Результат"))}</b></header><div class="wg-list">
+        ${li("Реализовано", fmtUsd(t.gross), cls(t.gross))}${li("Комиссии", fmtUsd(-(t.fee || 0)), t.fee ? "down" : "")}${li("Фандинг", fmtUsd(t.funding || 0), cls(t.funding || 0))}${li("Итог", fmtUsd(t.pnl), cls(t.pnl))}
+        ${li("Лучшая цена (MFE)", x ? `${pctS(x.mfeP, 2)} · ${fmtUsd(x.mfeU)}` : "…", "up")}${li("Против тебя (MAE)", x ? `${pctS(x.maeP, 2)} · ${fmtUsd(x.maeU)}` : "…", "down")}
+        ${li("Забрал от хода", x && x.took != null ? `${Math.round(x.took * 100)}%` : "—")}${li("Через 30 мин после выхода", x && x.afterU != null ? fmtUsd(x.afterU) : "—", x && x.afterU != null ? cls(x.afterU) : "")}</div></section>
+      <section class="wg"><header class="wg-h"><b>${esc(_t("Позиция"))}</b></header><div class="wg-list">
+        ${li("Вход", fmtP(t.entry))}${li("Выход", fmtP(t.exit))}${li("Разница", diffP == null ? "—" : pctS(diffP, 3), cls(diffP))}${li("Количество", q ? `${fmtP(q)} ${esc(t.sym)}` : "—")}${li("Объём", fmtUsd(t.notional, false))}${li("Плечо", t.lev ? `×${t.lev}` : "—")}</div></section>
+      <section class="wg"><header class="wg-h"><b>${esc(_t("Время"))}</b></header><div class="wg-list">
+        ${li("Открыта", t.openT ? fmtDate(t.openT) : "—")}${li("Закрыта", t.open ? _t("открыта") : fmtDate(t.closeT))}${li("В сделке", t.openT && t.closeT ? fmtDur(t.closeT - t.openT) : "—")}${li("День", t.openT ? wd()[(new Date(t.openT).getDay() + 6) % 7] : "—")}${li("Сессия", esc(sess))}</div></section>
+      <section class="wg"><header class="wg-h"><b>${esc(_t("Разбор сделки"))}</b></header>
+        <div class="jr-tags">${TAGS.map((g) => `<button class="${tagsOf(t).includes(g) ? "on" : ""}" data-j="tag" data-v="${esc(t.id)}" data-tag="${esc(g)}">${esc(_t(g))}</button>`).join("")}</div>
+        <textarea class="jr-note" data-note="${esc(t.id)}" placeholder="${esc(_t("Какой был план? Что сделал бы иначе? Что повторишь?"))}">${esc(n.note || "")}</textarea>
+        <button class="jr-ai" data-j="ai-trade" data-v="${esc(t.id)}" style="margin-top:10px"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l1.8 4.9L19 9.7l-4.3 3 1.4 5.3L12 15l-4.1 3 1.4-5.3L5 9.7l5.2-1.8z" fill="currentColor"/></svg>${esc(_t("ИИ-разбор этой сделки"))}<i class="pc-pro">PRO</i></button>
+        <div class="jr-ai-out" id="jr-ai-out"></div></section>
+      <section class="wg"><header class="wg-h"><b>${esc(_t("Другие сделки по"))} ${esc(t.sym)}</b></header>${all.length ? `<div class="wg-list">${all.map((y) => `<button class="wg-li tp-sim" data-j="open-trade" data-v="${esc(y.id)}"><span><span class="sd ${y.side === "long" ? "L" : "S"}">${y.side === "long" ? "L" : "S"}</span> ${fmtDate(y.closeT)}</span><b class="${cls(y.pnl)}">${fmtUsd(y.pnl)}</b></button>`).join("")}</div>` : emptyW("Других сделок по этой монете нет")}</section>
+    </div>`;
+    return h;
+  }
+  async function drawTradeChart(t) {
+    const box = $("#tp-chart");
+    if (!box) return;
+    const [iv, sec] = pickIv(t, S.tpIv);
+    let k;
+    try {
+      k = t.demo ? demoKlines(t, sec) : await fetchKlines(t, iv, sec);
+      await loadLW();
+    } catch (e) { k = k || null; }
+    if (!$("#tp-chart") || S.tradeId !== t.id) return;
+    if (!k || !k.length || !window.LightweightCharts) { box.innerHTML = `<div class="wg-empty"><div><b>${esc(_t("Свечи не загрузились"))}</b><br>${esc(_t("Биржа не отдала историю по этой монете."))}</div></div>`; return; }
+    const src = $("#tp-src"); if (src) src.textContent = `${t.demo ? _t("демо") : "Binance"} · ${iv}`;
+    if (!(t.id in S.exc) || (S.exc[t.id] && S.exc[t.id].iv > sec)) { S.exc[t.id] = excursion(t, k, sec); if (!t.demo) kvSet("exc", S.exc).catch(() => {}); }
+    const LW = window.LightweightCharts, tz = -new Date().getTimezoneOffset() * 60;
+    box.innerHTML = "";
+    if (tpChart) { try { tpChart.remove(); } catch (e) { /* noop */ } }
+    tpChart = LW.createChart(box, {
+      autoSize: true,
+      layout: { background: { type: "solid", color: "transparent" }, textColor: "rgba(250,250,250,.55)", fontSize: 11, fontFamily: "Manrope, system-ui, sans-serif" },
+      grid: { vertLines: { color: "rgba(255,255,255,.04)" }, horzLines: { color: "rgba(255,255,255,.04)" } },
+      rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+      crosshair: { vertLine: { color: "rgba(255,255,255,.25)", labelBackgroundColor: "#1c1c1e" }, horzLine: { color: "rgba(255,255,255,.25)", labelBackgroundColor: "#1c1c1e" } },
+      localization: { locale: I18.locale },
+    });
+    const ser = tpChart.addSeries(LW.CandlestickSeries, { upColor: "#e9e9ea", downColor: "#4a4a4f", wickUpColor: "#9a9a9f", wickDownColor: "#6a6a70", borderVisible: false, priceLineVisible: false, lastValueVisible: false });
+    const T = (ms) => Math.floor(ms / 1000) + tz;
+    ser.setData(k.map((c) => ({ time: T(c.t), open: c.o, high: c.h, low: c.l, close: c.c })));
+    const snap = (ms) => T(Math.floor(ms / (sec * 1000)) * sec * 1000);
+    const win = t.pnl >= 0, long = t.side === "long";
+    const mk = [];
+    if (t.openT) mk.push({ time: snap(t.openT), position: long ? "belowBar" : "aboveBar", color: "#00c58a", shape: long ? "arrowUp" : "arrowDown", text: _t("Вход") });
+    if (t.closeT && !t.open) mk.push({ time: snap(t.closeT), position: long ? "aboveBar" : "belowBar", color: win ? "#00c58a" : "#f2735b", shape: long ? "arrowDown" : "arrowUp", text: _t("Выход") });
+    LW.createSeriesMarkers(ser, mk.sort((a, b) => a.time - b.time));
+    if (t.entry) ser.createPriceLine({ price: t.entry, color: "rgba(255,255,255,.55)", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: _t("Вход") });
+    if (t.exit && !t.open) ser.createPriceLine({ price: t.exit, color: win ? "#00c58a" : "#f2735b", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: _t("Выход") });
+    tpChart.timeScale().fitContent();
+    // обновим блок «Результат» — MAE/MFE теперь посчитаны
+    const res = document.querySelector(".tp-grid .wg:nth-child(2) .wg-list");
+    if (res && S.exc[t.id]) { const tmp = document.createElement("div"); tmp.innerHTML = tradePageHtml(t); const nr = tmp.querySelector(".tp-grid .wg:nth-child(2) .wg-list"); if (nr) res.innerHTML = nr.innerHTML; }
+  }
+  function openTrade(id) {
+    const src = S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades;
+    const t = src.find((x) => x.id === id);
+    if (!t) return;
+    S.backView = S.view === "trade" ? S.backView : S.view;
+    S.view = "trade"; S.tradeId = id;
+    render();
+    $("#jr-body").scrollTop = 0;
+  }
+  async function aiTrade(btn, id) {
+    const out = $("#jr-ai-out"), A = window.AUTH;
+    const src = S.demo ? (S._demo || []) : S.trades, t = src.find((x) => x.id === id);
+    if (!t) return;
+    if (!CFG.supabaseUrl || !A || !A.enabled || !A.sb) { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор подключится вместе со входом в аккаунт."))}</p>`; return; }
+    const sess = (await A.sb.auth.getSession()).data.session;
+    if (!sess) { out.innerHTML = `<p class="jr-muted">${esc(_t("Войди в аккаунт, чтобы получить ИИ-разбор."))}</p>`; return; }
+    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в McQ Pro."))}</p>`; if (window.Pro && window.Pro.available()) window.Pro.open(); return; }
+    const x = S.exc[t.id] || {}, r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
+    const s = stats(filtered());
+    const ctx = {
+      trade: { sym: t.sym, side: t.side, exchange: t.ex, entry: t.entry, exit: t.exit, qty: t.qty, notional: r2(t.notional), leverage: t.lev || null,
+        pnl: r2(t.pnl), gross: r2(t.gross), fees: r2(t.fee), funding: r2(t.funding), opened: t.openT ? new Date(t.openT).toISOString() : null, closed: t.closeT ? new Date(t.closeT).toISOString() : null,
+        hold_min: t.openT && t.closeT ? Math.round((t.closeT - t.openT) / 60000) : null, mfe_pct: r2(x.mfeP), mae_pct: r2(x.maeP), took_of_move_pct: x.took != null ? Math.round(x.took * 100) : null,
+        price_30min_after_exit_usd: r2(x.afterU), tags: tagsOf(t), note: (S.notes[t.id] || {}).note || "" },
+      context: { trades_in_period: s.n, win_rate_pct: Math.round(s.winRate * 100), avg_win: r2(s.avgWin), avg_loss: r2(s.avgLoss), avg_hold_win_min: s.durWin ? Math.round(s.durWin / 60000) : null, avg_hold_loss_min: s.durLoss ? Math.round(s.durLoss / 60000) : null },
+      demo: !!t.demo,
+    };
+    btn.disabled = true;
+    out.innerHTML = `<span class="pc-dots"><i></i><i></i><i></i></span>`;
+    try {
+      const r = await fetch(`${CFG.supabaseUrl}/functions/v1/chart-ai`, { method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey, Authorization: `Bearer ${sess.access_token}` },
+        body: JSON.stringify({ kind: "trade", question: "Review this trade", ctx, lang: I18.lang }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 402) throw new Error(_t("ИИ-разбор торговли доступен в McQ Pro."));
+      if (r.status === 429) throw new Error(_t("Лимит вопросов на сегодня исчерпан"));
+      if (!r.ok || !d.answer) throw new Error(d.error || `${r.status}`);
+      out.innerHTML = `<div class="jr-ai-a">${esc(d.answer).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>")}</div><small class="jr-muted">${esc(_t("Не финансовый совет."))}</small>`;
+    } catch (e) { out.innerHTML = `<p class="down">${esc(e.message || _t("ИИ не ответил. Попробуй ещё раз."))}</p>`; }
+    btn.disabled = false;
   }
 
   // ---------------------------------------------------------------- список сделок с фильтрами
@@ -981,7 +1220,7 @@
     sh.innerHTML = `<div class="jr-sheet-in glass">
       <div class="jr-sh-h"><b>${esc(_t("Виджеты"))}</b><button class="pc-x sm" data-j="sheet-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
       <small class="jr-note-s">${esc(_t("Включай нужные и меняй порядок стрелками. Настройка хранится на этом устройстве."))}</small>
-      <div class="wg-cfg">${c.order.map((id, i) => { const on = !c.off.includes(id); return `<div class="wg-cfg-r ${on ? "" : "off"}"><span>${esc(_t(WG_NAME[id]))}</span><button data-j="wg-mv" data-v="${id}" data-d="-1" ${i ? "" : "disabled"} aria-label="${esc(_t("Выше"))}">↑</button><button data-j="wg-mv" data-v="${id}" data-d="1" ${i < n - 1 ? "" : "disabled"} aria-label="${esc(_t("Ниже"))}">↓</button><button class="tg ${on ? "on" : ""}" data-j="wg-tg" data-v="${id}" role="switch" aria-checked="${on}" aria-label="${esc(_t(WG_NAME[id]))}"></button></div>`; }).join("")}</div>
+      <div class="wg-cfg">${GROUPS.map(([g, title]) => { const ids = c.order.filter((id) => WG_GROUP[id] === g); return `<div class="wg-cfg-g">${esc(_t(title))}</div>` + ids.map((id, i) => { const on = !c.off.includes(id); return `<div class="wg-cfg-r ${on ? "" : "off"}"><span>${esc(_t(WG_NAME[id]))}</span><button data-j="wg-mv" data-v="${id}" data-d="-1" ${i ? "" : "disabled"} aria-label="${esc(_t("Выше"))}">↑</button><button data-j="wg-mv" data-v="${id}" data-d="1" ${i < ids.length - 1 ? "" : "disabled"} aria-label="${esc(_t("Ниже"))}">↓</button><button class="tg ${on ? "on" : ""}" data-j="wg-tg" data-v="${id}" role="switch" aria-checked="${on}" aria-label="${esc(_t(WG_NAME[id]))}"></button></div>`; }).join(""); }).join("")}</div>
       <button class="jr-more" data-j="wg-reset" style="border-radius:12px;background:var(--surface-2)">${esc(_t("Вернуть как было"))}</button></div>`;
     sh.hidden = false;
     const box = sh.querySelector(".wg-cfg"); if (box) box.scrollTop = top;
@@ -990,7 +1229,11 @@
   function wgAction(act, id, dir) {
     const c = wgCfg();
     if (act === "wg-tg") c.off = c.off.includes(id) ? c.off.filter((x) => x !== id) : c.off.concat(id);
-    else if (act === "wg-mv") { const i = c.order.indexOf(id), j = i + dir; if (j >= 0 && j < c.order.length) { c.order.splice(i, 1); c.order.splice(j, 0, id); } }
+    else if (act === "wg-mv") {
+      // меняем местами с соседом из того же раздела
+      const same = c.order.filter((x) => WG_GROUP[x] === WG_GROUP[id]), k = same.indexOf(id), other = same[k + dir];
+      if (other) { const i = c.order.indexOf(id), j = c.order.indexOf(other); c.order[i] = other; c.order[j] = id; }
+    }
     if (act === "wg-reset") { try { localStorage.removeItem(WG_KEY); } catch (e) { /* noop */ } } else wgSave(c);
     widgetsSheet(); render();
   }
@@ -1012,7 +1255,10 @@
       <div class="jr-sheet" id="jr-sheet" hidden></div>`;
     document.body.appendChild(el);
     el.addEventListener("click", onClick);
-    el.addEventListener("change", (e) => { const f = e.target.closest("[data-tf]"); if (!f) return; S.tf = Object.assign({}, S.tf, { [f.dataset.tf]: f.value }); S.showAll = false; S.expanded = null; render(); });
+    el.addEventListener("change", async (e) => {
+      const ta = e.target.closest(".jr-note");
+      if (ta) { const id = ta.dataset.note; S.notes[id] = Object.assign({}, S.notes[id], { note: ta.value.slice(0, 1000) }); try { await kvSet("notes", S.notes); } catch (er) { /* noop */ } return; }
+      const f = e.target.closest("[data-tf]"); if (!f) return; S.tf = Object.assign({}, S.tf, { [f.dataset.tf]: f.value }); S.showAll = false; S.expanded = null; render(); });
     return el;
   }
 
@@ -1035,7 +1281,10 @@
     else if (act === "tag") toggleTag(v, a.dataset.tag);
     else if (act === "more") { S.showAll = true; renderTrades(); }
     else if (act === "view") { S.view = v; S.expanded = null; S.showAll = false; render(); $("#jr-body").scrollTop = 0; }
-    else if (act === "goto") { S.view = "trades"; S.tf = null; S.expanded = v; S.showAll = true; render(); const r = document.querySelector(`.jr-tr.open`); if (r) r.scrollIntoView({ block: "center" }); }
+    else if (act === "goto" || act === "open-trade") openTrade(v);
+    else if (act === "tp-back") { S.view = S.backView || "trades"; S.tradeId = null; if (tpChart) { try { tpChart.remove(); } catch (er) { /* noop */ } tpChart = null; } render(); }
+    else if (act === "tp-iv") { S.tpIv = v; render(); }
+    else if (act === "ai-trade") aiTrade(a, v);
     else if (act === "widgets") widgetsSheet();
     else if (act === "wg-tg" || act === "wg-mv" || act === "wg-reset") wgAction(act, v, +a.dataset.d || 0);
     else if (act === "tab") { close(); setTimeout(() => { const b = document.querySelector(`.nav-btn[data-tab="${v}"]`); if (b) b.click(); }, 120); }
@@ -1060,6 +1309,11 @@
     if (!S.conns.length && !S.demo) { body.innerHTML = onboarding(); return; }
     const all = filtered(), s = stats(all);
     const exs = [...new Set((S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades).map((t) => t.ex))];
+    if (S.view === "trade") {
+      const src = S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades, t = src.find((x) => x.id === S.tradeId);
+      if (t) { body.innerHTML = `<div class="jr-wrap">${DEFS}${tradePageHtml(t)}</div>`; drawTradeChart(t); return; }
+      S.view = S.backView || "trades";
+    }
     const view = S.view === "calendar" || S.view === "trades" ? S.view : "overview";
     let h = `<div class="jr-wrap">${DEFS}`;
     if (S.demo) h += `<div class="jr-demo">${esc(_t("Это пример на выдуманных сделках."))} <button data-j="exit-demo">${esc(_t("Подключить свою биржу"))}</button></div>`;
@@ -1076,6 +1330,7 @@
     }
     if (view === "trades") { h += tradesViewHtml(s) + `</div>`; body.innerHTML = h; renderTrades(); return; }
     h += overviewHtml(s);
+    setTimeout(() => ensureExc(s.closed), 50);
     h += `<p class="hint">${esc(_t("Ключи хранятся только на этом устройстве и не отправляются на наш сервер. Результаты — по данным биржи; позиции, открытые до начала истории, считаются по реализованному PnL."))}</p></div>`;
     body.innerHTML = h;
   }
@@ -1218,7 +1473,7 @@
       const open = S.expanded === t.id;
       const pct = t.notional ? (t.pnl / t.notional) * 100 : null;
       return `<div class="jr-tr glass ${open ? "open" : ""}">
-        <button class="jr-tr-h" data-j="trade" data-v="${esc(t.id)}">
+        <button class="jr-tr-h" data-j="open-trade" data-v="${esc(t.id)}">
           <span class="sd ${t.side === "long" ? "L" : "S"}">${t.side === "long" ? "LONG" : "SHORT"}</span>
           <span class="jr-tr-s"><b>${esc(t.sym)}</b><small>${esc(EX[t.ex] ? EX[t.ex].name.replace(" Futures", "") : t.ex)} · ${t.open ? esc(_t("открыта")) : fmtDate(t.closeT)}${tagsOf(t).length ? " · " + tagsOf(t).map((x) => esc(_t(x))).join(", ") : ""}</small></span>
           <span class="jr-tr-m"><span>${t.openT && t.closeT ? fmtDur(t.closeT - t.openT) : "—"}</span><span>${t.lev ? `×${t.lev}` : "—"}</span><span>${fmtUsd(t.notional, false)}</span></span>
@@ -1234,16 +1489,14 @@
         </div>` : ""}
       </div>`;
     }).join("") + (list.length > show.length ? `<button class="jr-more" data-j="more">${esc(_t("Показать все"))} (${list.length})</button>` : "");
-    el.querySelectorAll(".jr-note").forEach((ta) => ta.addEventListener("change", async () => {
-      const id = ta.dataset.note; S.notes[id] = Object.assign({}, S.notes[id], { note: ta.value.slice(0, 1000) });
-      try { await kvSet("notes", S.notes); } catch (e) { /* noop */ }
-    }));
+
   }
   async function toggleTag(id, tag) {
-    const tr = (S._list || []).find((x) => x.id === id);
+    const tr = (S._list || []).concat(S.demo ? (S._demo || []) : S.trades).find((x) => x.id === id);
     const n = S.notes[id] = Object.assign({ tags: tr && tr.dtags ? tr.dtags.slice() : [] }, S.notes[id]);
     n.tags = n.tags.includes(tag) ? n.tags.filter((x) => x !== tag) : n.tags.concat(tag);
     try { await kvSet("notes", S.notes); } catch (e) { /* noop */ }
+    if (S.view === "trade") { const box = document.querySelector(".tp-grid .jr-tags"); if (box) box.querySelectorAll("button").forEach((b) => b.classList.toggle("on", n.tags.includes(b.dataset.tag))); return; }
     renderTrades();
   }
 
@@ -1347,7 +1600,7 @@
   }
 
   // ---------------------------------------------------------------- открыть / закрыть
-  function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#jr-sheet").hidden) closeSheet(); else close(); }
+  function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#jr-sheet").hidden) closeSheet(); else if (S.view === "trade") { S.view = S.backView || "trades"; render(); } else close(); }
   async function open() {
     const el = shell();
     S.open = true;

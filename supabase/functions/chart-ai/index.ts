@@ -54,6 +54,21 @@ No guarantees, not financial advice. Max ~230 words, short lines, may use **bold
 Return STRICT JSON only: {"answer": string}`;
 }
 
+function tradeSystem(lang: string) {
+  return `You are McQ AI — a strict but supportive trading coach. You receive ONE closed position of the user (from their exchange):
+side, entry/exit, size, leverage, result, fees, funding, opened/closed time, holding time, MFE (best price move in the trade's favour, %),
+MAE (worst move against, %), how much of the best move was captured, how price moved 30 minutes after the exit, the user's tags and note,
+plus a little context (their usual win rate, average win/loss and holding times).
+Write a short review of THIS trade:
+1) **Verdict** in one line (good / ok / bad execution — with the key numbers).
+2) **Entry** — was the risk (MAE) reasonable for the result.
+3) **Exit** — early, on time or late (use MFE, captured share and the 30-minute-after move).
+4) **Next time** — 2-3 concrete, measurable actions (stop placement, partial take-profit, holding rules).
+Use ONLY the given data, never invent prices or news. If a field is null, don't guess it. If "demo" is true, mention it's example data.
+Not financial advice. Max ~160 words, short lines, may use **bold**, no headings with #, no tables. Answer in ${LANGS[lang] || "English"}.
+Return STRICT JSON only: {"answer": string}`;
+}
+
 // вытаскиваем первый корректный JSON-объект из текста (модель может обернуть его в ```json … ``` или добавить слова)
 // deno-lint-ignore no-explicit-any
 function parseJSON(txt: string): any {
@@ -124,6 +139,15 @@ Deno.serve(async (req) => {
     if (!question || !ctx || typeof ctx !== "object") return json({ error: "bad request" }, 400);
     const lang = LANGS[body.lang] ? body.lang : "en";
     const ctxStr = JSON.stringify(ctx).slice(0, 14000);
+
+    // разбор одной сделки из журнала
+    if (body.kind === "trade") {
+      const tout = await llm([
+        { role: "system", content: tradeSystem(lang) },
+        { role: "user", content: `ONE CLOSED TRADE:\n${ctxStr}` },
+      ]);
+      return json({ answer: String(tout.answer || "").slice(0, 2500), pro, used: uerr ? null : used, limit });
+    }
 
     // разбор торгового журнала (McQ Journal)
     if (body.kind === "journal") {

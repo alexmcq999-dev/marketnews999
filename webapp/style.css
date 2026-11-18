@@ -1594,3 +1594,64 @@ main .chip.glass.active, .chip.active { background: #fff; color: #000; box-shado
 .jr-bar2::-webkit-scrollbar { display: none; }
 .jr-bar2:empty { display: none; }
 .jr-bar2 .jr-seg { flex: none; overflow: visible; }
+
+/* ================================================================ журнал: читаемость
+   Виджеты — отдельные карточки с промежутками, обзор поделён на подписанные разделы,
+   метрики внизу — в своих ячейках. Так данные не сливаются на чёрном фоне. */
+:root { --text-3: rgba(250, 250, 250, .5); }
+.jr, .jr-body { background: #000; }
+.wg-sec { display: flex; flex-direction: column; gap: 1px; margin: 14px 4px 0; }
+.wg-sec:first-of-type { margin-top: 4px; }
+.wg-sec b { font-size: 17px; font-weight: 750; letter-spacing: -0.02em; }
+.wg-sec small { font-size: 12px; color: var(--text-3); }
+.wg-grid { gap: 10px; border: 0; border-radius: 0; overflow: visible; background: none; }
+.wg { background: #111113; border-radius: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.075); padding: 16px; }
+.wg-h { padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.wg-h b { font-size: 15px; }
+.wg-cap { font-size: 12px; }
+.wg-foot { gap: 6px; padding-top: 0; border-top: 0; margin-top: 14px; }
+.wg-foot > div { background: rgba(255,255,255,.04); border-radius: 11px; padding: 9px 10px; gap: 2px; }
+.wg-foot b { font-size: 15px; }
+.wg-foot span { font-size: 11.5px; }
+.wg-li { padding: 7px 0; font-size: 13px; border-bottom-color: rgba(255,255,255,.06); }
+.wg-split > .wg-list { border-left-color: rgba(255,255,255,.07); }
+.wg-2x2 > div { background: rgba(255,255,255,.035); border-radius: 13px; padding: 11px 12px; }
+.wg-two > div { background: rgba(255,255,255,.035); border-radius: 13px; padding: 11px 12px; }
+.wg-hbar { padding: 6px 0; }
+.wg-tbl td { border-top-color: rgba(255,255,255,.07); padding-top: 10px; padding-bottom: 10px; }
+.wg-cal i { background: rgba(255,255,255,.05); }
+.wg-empty { background: rgba(255,255,255,.025); border-radius: 13px; }
+.jr-trades { border: 0; border-radius: 0; overflow: visible; gap: 6px; }
+.jr-tr, .jr-tr.glass { border-radius: 14px; background: #111113; box-shadow: inset 0 0 0 1px rgba(255,255,255,.075); }
+.jr-more { border-radius: 14px; background: #111113; box-shadow: inset 0 0 0 1px rgba(255,255,255,.075); }
+.wg-cfg-g { padding: 14px 4px 4px; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); }
+
+/* ---------------------------------------------------------------- страница сделки */
+.tp-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tp-t { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
+.tp-t b { font-size: 20px; font-weight: 750; letter-spacing: -0.02em; }
+.tp-t small { color: var(--text-3); font-size: 12px; }
+.tp-t .sd { align-self: center; margin-left: 4px; }
+.tp-lev { align-self: center; font-size: 11px; font-weight: 700; color: var(--text-2); padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,.07); }
+.tp-r { display: flex; flex-direction: column; align-items: flex-end; }
+.tp-r b { font-size: 24px; font-weight: 750; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.tp-r small { font-size: 12px; font-weight: 650; }
+.tp-r .up, .tp-h .up { color: var(--up); } .tp-r .down, .tp-h .down { color: var(--down); }
+.tp-chart { padding: 10px 10px 8px; }
+.tp-tf { display: flex; align-items: center; gap: 4px; padding: 2px 4px 8px; }
+.tp-tf button { border: 0; background: transparent; color: var(--text-2); font: 650 12px var(--font); padding: 5px 9px; border-radius: 8px; cursor: pointer; }
+.tp-tf button.on { background: #fff; color: #000; }
+.tp-tf small { font-size: 11px; color: var(--text-3); }
+.tp-tf .grow { flex: 1; }
+.tp-cv { height: 360px; display: grid; place-items: center; }
+@media (min-width: 1080px) { .tp-cv { height: 440px; } }
+.tp-sim { width: 100%; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.tp-sim .sd { padding: 1px 5px; font-size: 10px; }
+.tp-grid .jr-note { margin-top: 10px; min-height: 84px; background: rgba(255,255,255,.05); }
+.tp-grid .jr-ai-out:not(:empty) { margin-top: 10px; }
+.jr-note { font-family: var(--font); font-size: 13.5px; line-height: 1.45; }
+.tp-t small { white-space: nowrap; }
+@media (max-width: 520px) { .tp-h .tp-t { order: 3; flex-basis: 100%; } .tp-h .tp-r { margin-left: auto; } }
+.jr-cal-wd.wk { color: var(--text-2); }
+.jr-cal-c.wk { background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.jr-cal { background: #111113; }
