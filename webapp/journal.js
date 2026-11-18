@@ -551,14 +551,15 @@
       const notional = 500 + r() * 2500, qty = notional / px;
       const exit = px * (1 + move * dir), gross = (exit - px) * qty * dir, fee = notional * 0.0009;
       out.push({ id: `demo:${i}`, ex: ["binance", "bybit", "okx"][i % 3], sym, side, qty, entry: px, exit, notional, gross, fee, funding: -notional * 0.0001 * (dur / 28800000),
-        pnl: gross - fee, openT, closeT: openT + (win ? dur : dur * 1.8), open: false, demo: true });
+        pnl: gross - fee, openT, closeT: openT + (win ? dur : dur * 1.8), open: false, demo: true,
+        lev: [5, 10, 10, 20, 25, 50][Math.floor(r() * 6)], dtags: [["Сигнал McQ"], ["Пробой"], ["Тренд", "По плану"], ["FOMO"], [], ["Отбой"], ["Сигнал McQ", "По плану"], []][Math.floor(r() * 8)] });
     }
     // несколько «отыгрышей»: быстрый вход после убытка, чаще всего неудачный
     out.filter((t, i) => t.gross < 0 && i % 3 === 0).forEach((l, j) => {
       const notional = 1500 + r() * 1500, px = l.exit, qty = notional / px, win = j % 4 === 0, dir = l.side === "long" ? 1 : -1;
       const exit = px * (1 + (win ? 0.008 : -0.012) * dir), gross = (exit - px) * qty * dir, fee = notional * 0.0009;
       out.push({ id: `demo:r${j}`, ex: l.ex, sym: l.sym, side: l.side, qty, entry: px, exit, notional, gross, fee, funding: 0, pnl: 0,
-        openT: l.closeT + 8 * 60000, closeT: l.closeT + 50 * 60000, open: false, demo: true });
+        openT: l.closeT + 8 * 60000, closeT: l.closeT + 50 * 60000, open: false, demo: true, lev: 50, dtags: ["Отыгрыш"] });
     });
     // все сделки — в прошлом
     const shift = Math.max(0, ...out.map((t) => t.closeT - now)) + 3600000;
@@ -628,6 +629,372 @@
     await saveConns(); await saveTrades();
   }
 
+  // ================================================================ обзор: виджеты (в духе FOQUS)
+  // Каждый виджет: заголовок · главная цифра с пояснением · маленький график · строка из 2–4 метрик.
+  // Набор и порядок настраиваются («Виджеты»), сохраняются на устройстве.
+  const WG_KEY = "amq-jr-wg";
+  const WIDGETS = [
+    ["pnl", "Кривая прибыли"], ["month", "Карта месяца"], ["key", "Ключевые метрики"], ["insights", "Выводы и ИИ-разбор"],
+    ["market", "Рынок сегодня"], ["mcq", "Сигналы McQ и свои сделки"], ["recent", "Последние сделки"],
+    ["risk", "Риск на сделку"], ["move", "Средний ход цены"], ["dist", "Распределение результатов"],
+    ["daily", "Результат по дням"], ["sym", "Прибыль по монетам"], ["tags", "Прибыль по тегам"],
+    ["dow", "По дням недели"], ["hour", "По часам"], ["session", "По торговым сессиям"],
+    ["hold", "Время в сделке"], ["side", "Лонг и шорт"], ["lev", "Плечо и результат"],
+    ["streak", "Серии"], ["revenge", "Сделки после убытка"], ["perday", "Сделок в день"],
+    ["fees", "Комиссии"], ["funding", "Фандинг"], ["exch", "По биржам"],
+  ];
+  const WG_NAME = Object.fromEntries(WIDGETS);
+  function wgCfg() {
+    let c = null;
+    try { c = JSON.parse(localStorage.getItem(WG_KEY) || "null"); } catch (e) { /* noop */ }
+    const ids = WIDGETS.map((w) => w[0]);
+    const order = c && Array.isArray(c.order) ? c.order.filter((x) => ids.includes(x)) : [];
+    ids.forEach((x) => { if (!order.includes(x)) order.push(x); });
+    return { order, off: c && Array.isArray(c.off) ? c.off.filter((x) => ids.includes(x)) : [] };
+  }
+  function wgSave(c) { try { localStorage.setItem(WG_KEY, JSON.stringify(c)); } catch (e) { /* noop */ } }
+
+  const tagsOf = (t) => (S.notes[t.id] && S.notes[t.id].tags) || t.dtags || [];
+  const perLabel = () => _t(({ 7: "7д", 30: "30д", 90: "90д", 0: "Всё" })[S.period] || "Всё");
+  const pctS = (v, d = 1) => (v == null || !isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}%`);
+  const pfS = (v) => (v === Infinity ? "∞" : v ? v.toFixed(2) : "0.00");
+  const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+  const quant = (a, p) => { if (!a.length) return null; const b = [...a].sort((x, y) => x - y), i = (b.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i); return b[lo] + (b[hi] - b[lo]) * (i - lo); };
+  const median = (a) => quant(a, 0.5);
+  const grp = (list, keyFn) => {
+    const m = new Map();
+    list.forEach((t) => { const k = keyFn(t); if (k == null) return; const g = m.get(k) || { k, n: 0, w: 0, pnl: 0, list: [] }; g.n++; if (t.pnl > 0) g.w++; g.pnl += t.pnl; g.list.push(t); m.set(k, g); });
+    return m;
+  };
+  const wd = () => [_t("Пн"), _t("Вт"), _t("Ср"), _t("Чт"), _t("Пт"), _t("Сб"), _t("Вс")];
+  const hh = (h) => `${String(h).padStart(2, "0")}:00`;
+  // торговые сессии по времени входа (UTC)
+  const SESS = [["Азия", 0, 7], ["Европа", 7, 13], ["Европа + США", 13, 16], ["США", 16, 21], ["Ночь", 21, 24]];
+  const HOLD = [["<5м", 5 * 60e3], ["5–15м", 15 * 60e3], ["15м–1ч", 3600e3], ["1–4ч", 4 * 3600e3], ["4–24ч", 24 * 3600e3], [">1д", Infinity]];
+  const LEV = [["×1–3", 3], ["×5", 5], ["×10", 10], ["×20", 20], ["×50", 50], ["×50+", Infinity]];
+  const sessOf = (t) => { const h = new Date(t.openT || t.closeT).getUTCHours(); return SESS.findIndex(([, a, b]) => h >= a && h < b); };
+
+  function ext(s) {
+    const c = s.closed;
+    const dmap = grp(c, (t) => dayKey(t.closeT));
+    c.forEach((t) => { const g = dmap.get(dayKey(t.closeT)); g.fee = (g.fee || 0) + (t.fee || 0); });
+    const days = [...dmap.values()].sort((a, b) => (a.k < b.k ? -1 : 1));
+    const mv = c.filter((t) => t.entry && t.exit).map((t) => ({ t, p: ((t.exit - t.entry) / t.entry) * 100 * (t.side === "long" ? 1 : -1) }));
+    const hold = c.filter((t) => t.openT && t.closeT > t.openT).map((t) => ({ t, d: t.closeT - t.openT }));
+    return {
+      days, mv, hold,
+      bestDay: days.reduce((b, d) => (!b || d.pnl > b.pnl ? d : b), null),
+      worstDay: days.reduce((b, d) => (!b || d.pnl < b.pnl ? d : b), null),
+      byOpenHour: grp(c, (t) => new Date(t.openT || t.closeT).getHours()),
+      bySess: grp(c, (t) => sessOf(t)),
+      byHold: grp(hold.map((x) => x.t), (t) => HOLD.findIndex(([, lim]) => t.closeT - t.openT < lim)),
+      byLev: grp(c.filter((t) => t.lev), (t) => LEV.findIndex(([, lim]) => t.lev <= lim)),
+    };
+  }
+
+  // ---------------------------------------------------------------- разметка виджета
+  function wg(id, body, o = {}) {
+    return `<section class="wg ${o.w2 ? "w2" : ""}" data-w="${id}"><header class="wg-h"><b>${esc(_t(WG_NAME[id]))}</b>${o.per === false ? "" : `<span class="wg-per">${esc(perLabel())}</span>`}${o.link ? `<button class="wg-link" data-j="${o.link[0]}" data-v="${esc(o.link[1])}">${esc(_t(o.link[2]))} ›</button>` : ""}</header>${body}</section>`;
+  }
+  const foot = (items, c) => `<div class="wg-foot ${c || ""}">${items.map(([v, l, k]) => `<div><b class="${k || ""}">${v}</b><span>${esc(_t(l))}</span></div>`).join("")}</div>`;
+  const big = (cap, v, k, sub, md) => `${cap ? `<div class="wg-cap">${esc(cap)}</div>` : ""}<div class="wg-big ${md ? "md" : ""} ${k || ""}">${v}</div>${sub ? `<div class="wg-sub">${sub}</div>` : ""}`;
+  const li = (l, v, k) => `<div class="wg-li"><span>${esc(_t(l))}</span><b class="${k || ""}">${v}</b></div>`;
+  const emptyW = (t, sub) => `<div class="wg-empty"><div><b>${esc(_t(t))}</b>${sub ? `<br>${esc(_t(sub))}` : ""}</div></div>`;
+  const DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <linearGradient id="svgUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#00c58a" stop-opacity=".3"/><stop offset="1" stop-color="#00c58a" stop-opacity="0"/></linearGradient>
+    <linearGradient id="svgDn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2735b" stop-opacity="0"/><stop offset="1" stop-color="#f2735b" stop-opacity=".3"/></linearGradient></defs></svg>`;
+
+  function svgCurve(vals, H = 120) {
+    const W = 600, pts = [0, ...vals], mn = Math.min(0, ...pts), mx = Math.max(0, ...pts), sp = mx - mn || 1;
+    const x = (i) => (i / Math.max(1, pts.length - 1)) * W, y = (v) => 6 + (H - 12) * (1 - (v - mn) / sp);
+    const d = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join("");
+    const k = pts[pts.length - 1] >= 0 ? "up" : "down", z = y(0).toFixed(1);
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><line class="sv-zero" x1="0" x2="${W}" y1="${z}" y2="${z}" vector-effect="non-scaling-stroke"/><path class="sv-area ${k}" d="${d}L${W} ${z}L0 ${z}Z"/><path class="sv-line ${k}" d="${d}"/></svg>`;
+  }
+  // столбики: значения со знаком (цвет по знаку) или o.kinds — свой цвет для каждого; подписи — строкой под графиком
+  function svgBars(vals, H = 86, o = {}) {
+    const n = vals.length, W = n * 10, mx = Math.max(1e-9, ...vals.map((v) => Math.abs(v)));
+    const neg = !o.kinds && vals.some((v) => v < 0), pos = vals.some((v) => v > 0);
+    const z = neg && pos ? H / 2 : neg ? 1 : H - 1, sc = neg && pos ? H / 2 - 2 : H - 3, bw = o.bw || 6.6;
+    let b = "";
+    vals.forEach((v, i) => {
+      const x = (i * 10 + (10 - bw) / 2).toFixed(2);
+      if (!v) { b += `<rect class="sv-bar n" x="${x}" y="${(z - 1).toFixed(1)}" width="${bw}" height="2"/>`; return; }
+      const h = Math.max(2, (Math.abs(v) / mx) * sc), k = o.kinds ? o.kinds[i] : o.mono ? "w" : v > 0 ? "up" : "down";
+      b += `<rect class="sv-bar ${k}" x="${x}" y="${(v > 0 ? z - h : z).toFixed(1)}" width="${bw}" height="${h.toFixed(1)}"/>`;
+    });
+    const lab = o.labels ? `<div class="sv-xl" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${o.labels.map((l) => `<span>${l}</span>`).join("")}</div>` : o.ends ? `<div class="sv-xe">${o.ends.map((l) => `<span>${l}</span>`).join("")}</div>` : "";
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><line class="sv-grid" x1="0" x2="${W}" y1="${z}" y2="${z}" vector-effect="non-scaling-stroke"/>${b}</svg>${lab}`;
+  }
+  const ring = (p) => { const r = 18, c = 2 * Math.PI * r; return `<svg class="wg-ring" viewBox="0 0 46 46" aria-hidden="true"><circle cx="23" cy="23" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--up)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${(c * Math.max(0, Math.min(1, p))).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 23 23)"/></svg>`; };
+  const hbars = (rows) => { const mx = Math.max(1e-9, ...rows.map((r) => Math.abs(r.v))); return rows.map((r) => `<div class="wg-hbar"><span>${esc(r.k)}<small>${r.sub || ""}</small></span><b class="${cls(r.v)}">${fmtUsd(r.v)}</b><em><i class="${r.v >= 0 ? "up" : "down"}" style="width:${Math.max(2, (Math.abs(r.v) / mx) * 100).toFixed(0)}%"></i></em></div>`).join(""); };
+  const wr = (g) => (g && g.n ? `${Math.round((g.w / g.n) * 100)}%` : "—");
+  function fmtAgo(t) {
+    const d = (t - Date.now()) / 1000, a = Math.abs(d);
+    let rtf; try { rtf = new Intl.RelativeTimeFormat(I18.locale, { numeric: "auto", style: "short" }); } catch (e) { return fmtDate(t); }
+    return a < 3600 ? rtf.format(Math.round(d / 60), "minute") : a < 86400 ? rtf.format(Math.round(d / 3600), "hour") : rtf.format(Math.round(d / 86400), "day");
+  }
+
+  // ---------------------------------------------------------------- виджеты
+  const WG = {
+    pnl(s, X) {
+      const eq = equityBase(), gross = s.net + s.fees - s.funding;
+      const left = big(`${_t("Итог")} · USD`, fmtUsd(s.net), cls(s.net), `${eq ? `${pctS((s.net / eq) * 100, 2)} ${esc(_t("к депозиту"))} · ` : ""}${s.n} ${esc(tradesWord(s.n))}`)
+        + `<div class="wg-viz">${svgCurve(s.curve.map((p) => p.v), 130)}</div>`
+        + foot([[`${Math.round(s.winRate * 100)}%`, "Win rate"], [fmtUsd(-s.maxDD), "Макс. просадка", s.maxDD ? "down" : ""], [pfS(s.pf), "Profit factor"], [fmtUsd(s.expectancy), "Средняя сделка", cls(s.expectancy)]]);
+      const right = `<div class="wg-list">${li("Сделок", s.n)}${li("Прибыльные", fmtUsd(s.grossWin), "up")}${li("Убыточные", fmtUsd(-s.grossLoss), s.grossLoss ? "down" : "")}`
+        + `${li("Лучший день", X.bestDay ? fmtUsd(X.bestDay.pnl) : "—", X.bestDay ? cls(X.bestDay.pnl) : "")}${li("Худший день", X.worstDay ? fmtUsd(X.worstDay.pnl) : "—", X.worstDay ? cls(X.worstDay.pnl) : "")}`
+        + `${li("Лучшая сделка", s.best ? `${esc(s.best.sym)} ${fmtUsd(s.best.pnl)}` : "—", s.best ? cls(s.best.pnl) : "")}${li("Комиссии и фандинг", fmtUsd(s.funding - s.fees), cls(s.funding - s.fees))}${li("До комиссий", fmtUsd(gross), cls(gross))}</div>`;
+      return wg("pnl", `<div class="wg-split"><div>${left}</div>${right}</div>`, { w2: true });
+    },
+    month() {
+      const src = calSource(), m0 = calMonth(), y = m0.getFullYear(), mo = m0.getMonth();
+      const pre = `${y}-${String(mo + 1).padStart(2, "0")}`;
+      const g = grp(src.filter((t) => dayKey(t.closeT).startsWith(pre)), (t) => dayKey(t.closeT));
+      const mx = Math.max(1e-9, ...[...g.values()].map((x) => Math.abs(x.pnl)));
+      const days = new Date(y, mo + 1, 0).getDate(), lead = (new Date(y, mo, 1).getDay() + 6) % 7, todayK = dayKey(Date.now());
+      let cells = wd().map((d) => `<span>${esc(d)}</span>`).join("");
+      for (let i = 0; i < lead; i++) cells += `<i class="o"></i>`;
+      for (let d = 1; d <= days; d++) {
+        const k = `${pre}-${String(d).padStart(2, "0")}`, x = g.get(k);
+        cells += `<i class="${x ? (x.pnl >= 0 ? "pos" : "neg") : ""} ${k === todayK ? "today" : ""}" ${x ? `style="--k:${Math.round(30 + 70 * Math.min(1, Math.abs(x.pnl) / mx))}%" title="${fmtUsd(x.pnl)}"` : ""}>${d}</i>`;
+      }
+      const tot = [...g.values()].reduce((a, x) => a + x.pnl, 0), up = [...g.values()].filter((x) => x.pnl > 0).length;
+      const title = new Date(y, mo, 1).toLocaleDateString(I18.locale, { month: "long", year: "numeric" });
+      return wg("month", `<div class="wg-cap" style="margin-bottom:8px">${esc(title.charAt(0).toUpperCase() + title.slice(1))}</div><div class="wg-cal">${cells}</div>`
+        + foot([[fmtUsd(tot), "Итог месяца", cls(tot)], [`${up} ${esc(_t("из"))} ${g.size}`, "Дней в плюсе"], [String([...g.values()].reduce((a, x) => a + x.n, 0)), "Сделок"]], "c3"), { per: false, link: ["view", "calendar", "Календарь"] });
+    },
+    key(s) {
+      const pr = s.avgLoss ? s.avgWin / s.avgLoss : null, mxw = Math.max(s.avgWin, s.avgLoss) || 1;
+      return wg("key", `<div class="wg-2x2">
+        <div>${big(_t("Чистый результат"), fmtUsd(s.net), cls(s.net), S.period ? `${esc(_t("за"))} ${S.period} ${esc(_t("дн."))}` : esc(_t("за всё время")))}</div>
+        <div>${ring(s.winRate)}${big("Win rate", `${Math.round(s.winRate * 100)}%`, "", `${s.wins} ${esc(_t("из"))} ${s.n} ${esc(_t("в плюсе"))}`)}</div>
+        <div>${big(_t("Прибыль / убыток"), pr == null ? "∞" : pr.toFixed(2), "", esc(_t("средняя прибыль к среднему убытку")))}<div class="wg-ratio"><i class="up" style="width:${((s.avgWin / mxw) * 100).toFixed(0)}%"></i><i class="down" style="width:${((s.avgLoss / mxw) * 100).toFixed(0)}%"></i></div></div>
+        <div>${big(_t("Сделок"), String(s.n), "", `${s.perDay.toFixed(1)} ${esc(_t("в день"))}`)}</div></div>`);
+    },
+    insights(s) {
+      const ins = insights(s);
+      return wg("insights", `<div class="jr-ins">${ins.length ? ins.map(([k, t]) => `<p class="${k}"><i></i>${esc(t)}</p>`).join("") : `<p class="info"><i></i>${esc(_t("Пока мало сделок для выводов — нужно хотя бы 10–20."))}</p>`}
+        <button class="jr-ai" data-j="ai"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l1.8 4.9L19 9.7l-4.3 3 1.4 5.3L12 15l-4.1 3 1.4-5.3L5 9.7l5.2-1.8z" fill="currentColor"/></svg>${esc(_t("ИИ-разбор торговли"))}<i class="pc-pro">PRO</i></button>
+        <div class="jr-ai-out" id="jr-ai-out"></div></div>`);
+    },
+    market() {
+      const D = window.McQ && window.McQ.data ? window.McQ.data() : null;
+      if (!D) return wg("market", emptyW("Данные рынка загружаются"), { per: false });
+      const now = Date.now(), ru = I18.lang === "ru";
+      const ev = (D.calendar || []).filter((e) => new Date(e.ts).getTime() > now - 2 * 3600e3).slice(0, 4);
+      const next = (D.calendar || []).find((e) => new Date(e.ts).getTime() > now);
+      const nw = (D.news || []).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 3);
+      const BIAS = { bullish: ["Бычья", "up"], bearish: ["Медвежья", "down"], mixed: ["Смешанная", ""] };
+      let h = "";
+      if (next) {
+        const m = Math.max(0, Math.round((new Date(next.ts).getTime() - now) / 60000));
+        h += big(`${esc(next.country || "")} · ${esc(next.title)}`, m < 60 ? `${m} ${esc(_t("мин"))}` : `${Math.floor(m / 60)} ${esc(_t("ч"))} ${m % 60} ${esc(_t("мин"))}`, "", esc(_t("до следующего события")), true);
+      }
+      if (ev.length) h += `<div style="margin-top:8px">${ev.map((e) => `<div class="wg-ev ${new Date(e.ts).getTime() < now ? "past" : ""}"><time>${new Date(e.ts).toLocaleTimeString(I18.locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}</time><span>${esc(e.country || "")} · ${esc(e.title)}</span><em class="${e.impact === "High" ? "hi" : ""}">${esc(_t(e.impact === "High" ? "важно" : "средне"))}</em></div>`).join("")}</div>`;
+      if (nw.length) {
+        h += `<div class="wg-sep"></div>`;
+        h += nw.map((n) => { const tr = ru ? null : ((n.i18n || {})[I18.lang] || (n.i18n || {}).en); const title = ru ? n.title : (tr && tr.title) || n.title_en || n.title; const b = BIAS[n.bias]; return `<button class="wg-nw" data-j="tab" data-v="news">${esc(n.emoji || "")} ${esc(title)}<small>${b ? `<i class="${b[1]}">${esc(_t(b[0]))}</i> · ` : ""}${fmtAgo(new Date(n.ts).getTime())}</small></button>`; }).join("");
+      }
+      if (!h) h = emptyW("Сегодня важных событий нет");
+      return wg("market", h, { per: false, link: ["tab", "calendar", "Календарь"] });
+    },
+    mcq(s) {
+      const isM = (t) => tagsOf(t).includes("Сигнал McQ");
+      const a = s.closed.filter(isM), b = s.closed.filter((t) => !isM(t));
+      if (!a.length) return wg("mcq", emptyW("Пока нет сделок по сигналам McQ", "Отметь сделку тегом «Сигнал McQ» — здесь появится сравнение с твоими собственными сделками.") + `<button class="jr-tool" data-j="tab" data-v="signals" style="align-self:center">${esc(_t("Открыть сигналы"))}</button>`);
+      const col = (list, title) => { const x = stats(list); return `<div><div class="wg-cap">${esc(_t(title))}</div>${big("", fmtUsd(x.net), cls(x.net), "", true)}<div class="wg-list" style="margin-top:6px">${li("Сделок", x.n)}${li("Win rate", `${Math.round(x.winRate * 100)}%`)}${li("Profit factor", pfS(x.pf))}${li("Средняя сделка", fmtUsd(x.expectancy), cls(x.expectancy))}</div></div>`; };
+      return wg("mcq", `<div class="wg-two">${col(a, "По сигналам McQ")}${col(b, "Свои сделки")}</div>`);
+    },
+    recent(s) {
+      const list = s.closed.slice(-8).reverse();
+      const rows = list.map((t) => { const pct = t.notional ? (t.pnl / t.notional) * 100 : null; return `<tr data-j="goto" data-v="${esc(t.id)}"><td><b>${esc(t.sym)}</b></td><td><span class="sd ${t.side === "long" ? "L" : "S"}">${t.side === "long" ? "LONG" : "SHORT"}</span></td><td>${fmtAgo(t.closeT)}</td><td class="hide-s">${t.openT ? fmtDur(t.closeT - t.openT) : "—"}</td><td class="hide-s">${t.lev ? `×${t.lev}` : "—"}</td><td class="r"><b class="${cls(t.pnl)}">${fmtUsd(t.pnl)}</b></td><td class="r hide-s ${cls(t.pnl)}">${pct == null ? "—" : pctS(pct, 2)}</td></tr>`; }).join("");
+      return wg("recent", `<div style="overflow-x:auto"><table class="wg-tbl"><thead><tr><th>${esc(_t("Монета"))}</th><th>${esc(_t("Сторона"))}</th><th>${esc(_t("Закрыта"))}</th><th class="hide-s">${esc(_t("В сделке"))}</th><th class="hide-s">${esc(_t("Плечо"))}</th><th class="r">${esc(_t("Результат"))}</th><th class="r hide-s">${esc(_t("% объёма"))}</th></tr></thead><tbody>${rows}</tbody></table></div>`, { w2: true, per: false, link: ["view", "trades", "Все сделки"] });
+    },
+    risk(s) {
+      const eq = equityBase();
+      if (!eq) return wg("risk", emptyW("Нужен баланс счёта", "Баланс берётся с биржи при обновлении — для этого подключения он недоступен."));
+      const lp = (s.avgLoss / eq) * 100, run = s.avgLoss > 0 ? Math.floor(eq / s.avgLoss) : null;
+      const k = lp > 3 ? "down" : "", worst = s.worst ? (s.worst.pnl / eq) * 100 : null;
+      return wg("risk", big(_t("Сколько в среднем забирает убыточная сделка"), s.avgLoss ? pctS(-lp, 2) : "0%", s.avgLoss ? "down" : "", run ? `${run} ${esc(_t("таких сделок до нуля"))} · ${esc(_t("от текущего депозита"))} ${fmtUsd(eq, false)}` : esc(_t("убыточных сделок нет")))
+        + `<div class="wg-viz"><div class="wg-ratio"><i class="${k || "up"}" style="width:${Math.max(2, Math.min(100, lp * 10)).toFixed(0)}%"></i></div><div class="wg-sub" style="margin-top:6px">${esc(_t(lp <= 1 ? "Риск в норме: до 1% на сделку" : lp <= 3 ? "Риск повышенный: 1–3% на сделку" : "Риск высокий: больше 3% на сделку"))}</div></div>`
+        + foot([[run ? String(run) : "∞", "Запас счёта, сделок"], [worst == null ? "—" : pctS(worst, 1), "Худшая сделка", worst < 0 ? "down" : ""], [pctS((-s.maxDD / eq) * 100, 1), "Макс. просадка", s.maxDD ? "down" : ""], [String(s.streakL), "Убытков подряд"]]));
+    },
+    move(s, X) {
+      const p = X.mv.map((x) => x.p);
+      if (!p.length) return wg("move", emptyW("Нет цен входа и выхода"));
+      const avg = mean(p), w = mean(p.filter((x) => x > 0)), l = mean(p.filter((x) => x < 0));
+      const H = 90, W = 600, mx = Math.max(Math.abs(w || 0), Math.abs(l || 0), 1e-9), y = (v) => H / 2 - (v / mx) * (H / 2 - 6);
+      const viz = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><line class="sv-zero" x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" vector-effect="non-scaling-stroke"/>${w != null ? `<path class="sv-line up" d="M0 ${H / 2} L${W} ${y(w).toFixed(1)}"/>` : ""}${l != null ? `<path class="sv-line down" d="M0 ${H / 2} L${W} ${y(l).toFixed(1)}"/>` : ""}</svg>`;
+      return wg("move", big(_t("Средний ход цены за сделку"), pctS(avg, 2), cls(avg), esc(_t("от входа до выхода, в сторону сделки"))) + `<div class="wg-viz">${viz}</div>`
+        + foot([[pctS(w, 2), "Прибыльная в среднем", "up"], [pctS(l, 2), "Убыточная в среднем", "down"], [w && l ? `${Math.abs(w / l).toFixed(1)}×` : "—", "Соотношение ходов"], [`${pctS(quant(p, 0.25), 2)} … ${pctS(quant(p, 0.75), 2)}`, "Средняя половина"]]));
+    },
+    dist(s) {
+      const v = s.closed.map((t) => t.pnl);
+      const mn = Math.min(...v), mx = Math.max(...v), N = 14, step = (mx - mn) / N || 1;
+      const bins = Array(N).fill(0), mid = [];
+      v.forEach((x) => { bins[Math.min(N - 1, Math.floor((x - mn) / step))]++; });
+      for (let i = 0; i < N; i++) mid.push(mn + step * (i + 0.5));
+      const top5 = s.closed.map((t) => t.pnl).filter((x) => x > 0).sort((a, b) => b - a).slice(0, 5).reduce((a, x) => a + x, 0);
+      const lab = [fmtShort(mn), fmtShort(0).replace(/^[+−]/, ""), fmtShort(mx)];
+      return wg("dist", big(_t("Средний результат сделки"), fmtUsd(s.expectancy), cls(s.expectancy), `${s.n} ${esc(tradesWord(s.n))}`)
+        + `<div class="wg-viz">${svgBars(bins, 80, { kinds: mid.map((m) => (m >= 0 ? "up" : "down")), ends: lab })}</div>`
+        + foot([[fmtUsd(s.avgWin), "Средняя прибыль", "up"], [fmtUsd(-s.avgLoss), "Средний убыток", s.avgLoss ? "down" : ""], [fmtUsd(median(v)), "Медиана", cls(median(v))], [s.grossWin ? `${Math.round((top5 / s.grossWin) * 100)}%` : "—", "Прибыли дают 5 лучших"]]));
+    },
+    daily(s, X) {
+      const d = X.days.slice(-45), v = d.map((x) => x.pnl);
+      const dl = (k) => new Date(k + "T12:00:00").toLocaleDateString(I18.locale, { day: "numeric", month: "short" });
+      const lab = d.length ? [dl(d[0].k), d.length > 2 ? dl(d[Math.floor(d.length / 2)].k) : "", dl(d[d.length - 1].k)] : [];
+      return wg("daily", big(_t("Средний торговый день"), fmtUsd(mean(v)), cls(mean(v)), `${X.days.length} ${esc(_t("торговых дней"))}`)
+        + `<div class="wg-viz">${svgBars(v, 86, { ends: lab })}</div>`
+        + foot([[X.bestDay ? fmtUsd(X.bestDay.pnl) : "—", "Лучший день", X.bestDay ? cls(X.bestDay.pnl) : ""], [X.worstDay ? fmtUsd(X.worstDay.pnl) : "—", "Худший день", X.worstDay ? cls(X.worstDay.pnl) : ""], [fmtUsd(median(v)), "Медианный день", cls(median(v))], [`${Math.round((v.filter((x) => x > 0).length / Math.max(1, v.length)) * 100)}%`, "Дней в плюсе"]]));
+    },
+    sym(s) {
+      const up = s.bySym.filter((g) => g.pnl > 0), dn = s.bySym.filter((g) => g.pnl <= 0).reverse();
+      const rows = (a) => (a.length ? hbars(a.slice(0, 5).map((g) => ({ k: g.k, v: g.pnl, sub: ` · ${g.n} · ${wr(g)}` }))) : `<div class="wg-sub">—</div>`);
+      const pin = up.reduce((a, g) => a + g.pnl, 0), pout = dn.reduce((a, g) => a + g.pnl, 0);
+      return wg("sym", `<div class="wg-two"><div><div class="wg-cap">${esc(_t("В плюсе"))} · ${up.length}</div>${rows(up)}</div><div><div class="wg-cap">${esc(_t("В минусе"))} · ${dn.length}</div>${rows(dn)}</div></div>`
+        + foot([[fmtUsd(pin), "Принесли", "up"], [fmtUsd(pout), "Забрали", pout ? "down" : ""], [String(s.bySym.length), "Монет"], [(s.n / Math.max(1, s.bySym.length)).toFixed(1), "Сделок на монету"]]));
+    },
+    tags(s) {
+      const m = new Map(), combo = new Map();
+      s.closed.forEach((t) => {
+        const tg = tagsOf(t);
+        tg.forEach((x) => { const g = m.get(x) || { k: x, n: 0, w: 0, pnl: 0 }; g.n++; if (t.pnl > 0) g.w++; g.pnl += t.pnl; m.set(x, g); });
+        if (tg.length >= 2) { const k = [...tg].sort().map((x) => _t(x)).join(" + "); const g = combo.get(k) || { k, n: 0, w: 0, pnl: 0 }; g.n++; if (t.pnl > 0) g.w++; g.pnl += t.pnl; combo.set(k, g); }
+      });
+      if (!m.size) return wg("tags", emptyW("На сделках этого периода нет тегов", "Отмечай причину входа на сделке — разбивка появится сразу."));
+      const list = [...m.values()].sort((a, b) => b.pnl - a.pnl);
+      const cb = [...combo.values()].sort((a, b) => b.pnl - a.pnl);
+      return wg("tags", hbars(list.slice(0, 8).map((g) => ({ k: _t(g.k), v: g.pnl, sub: ` · ${g.n} · ${wr(g)}` })))
+        + (cb.length ? `<div class="wg-sep"></div><div class="wg-cap" style="margin-bottom:2px">${esc(_t("Комбинации тегов"))}</div><div class="wg-list">${cb.slice(0, 3).map((g) => `<div class="wg-li"><span>${esc(g.k)} · ${g.n}</span><b class="${cls(g.pnl)}">${fmtUsd(g.pnl)}</b></div>`).join("")}</div>` : ""));
+    },
+    dow(s) {
+      const m = Object.fromEntries(s.byDow.map((g) => [g.k, g])), names = wd();
+      const v = names.map((_, i) => (m[i] ? m[i].pnl : 0));
+      const act = s.byDow.slice().sort((a, b) => b.pnl - a.pnl), best = act[0], worst = act[act.length - 1];
+      const wk = [0, 1, 2, 3, 4].reduce((a, i) => a + v[i], 0), we = v[5] + v[6];
+      return wg("dow", big(best ? `${_t("Лучший день недели")} · ${names[best.k]}` : "", best ? fmtUsd(best.pnl) : "—", best ? cls(best.pnl) : "")
+        + `<div class="wg-viz">${svgBars(v, 80, { labels: names.map((n, i) => `${esc(n)}·${m[i] ? m[i].n : 0}`) })}</div>`
+        + foot([[worst ? `${esc(names[worst.k])} ${fmtShort(worst.pnl)}` : "—", "Худший день", worst ? cls(worst.pnl) : ""], [fmtUsd(s.expectancy), "Средняя сделка", cls(s.expectancy)], [fmtUsd(wk), "Пн–Пт", cls(wk)], [fmtUsd(we), "Выходные", cls(we)]]));
+    },
+    hour(s, X) {
+      const v = Array.from({ length: 24 }, (_, h) => (X.byOpenHour.get(h) || { pnl: 0 }).pnl);
+      const hs = [...X.byOpenHour.values()].sort((a, b) => b.pnl - a.pnl), best = hs[0], worst = hs[hs.length - 1];
+      const lab = v.map((_, h) => (h % 6 === 0 ? String(h).padStart(2, "0") : ""));
+      return wg("hour", big(_t("Лучший час входа"), best ? hh(best.k) : "—", "", best ? `<span class="${cls(best.pnl)}">${fmtUsd(best.pnl)}</span> · ${best.n} ${esc(tradesWord(best.n))}` : "")
+        + `<div class="wg-viz">${svgBars(v, 80, { bw: 7, labels: lab })}</div>`
+        + foot([[worst ? `${hh(worst.k)}` : "—", "Худший час", worst ? cls(worst.pnl) : ""], [`${X.byOpenHour.size} ${esc(_t("из"))} 24`, "Часов с торговлей"], [String(hs.filter((g) => g.pnl > 0).length), "Часов в плюсе", "up"], [String(hs.filter((g) => g.pnl < 0).length), "Часов в минусе", "down"]]));
+    },
+    session(s, X) {
+      const g = SESS.map((_, i) => X.bySess.get(i) || { k: i, n: 0, w: 0, pnl: 0 });
+      const act = g.filter((x) => x.n).sort((a, b) => b.pnl - a.pnl), best = act[0], worst = act[act.length - 1];
+      return wg("session", big(best ? `${_t("Лучшая сессия")} · ${_t(SESS[best.k][0])}` : "", best ? fmtUsd(best.pnl) : "—", best ? cls(best.pnl) : "", esc(_t("по времени входа, UTC")))
+        + `<div class="wg-viz">${svgBars(g.map((x) => x.pnl), 80, { bw: 5, labels: SESS.map(([n], i) => `${esc(_t(n))}·${g[i].n}`) })}</div>`
+        + foot([[worst ? esc(_t(SESS[worst.k][0])) : "—", "Худшая сессия", worst ? cls(worst.pnl) : ""], [best ? String(best.n) : "0", "Сделок в лучшей"], [wr(best), "Win rate в лучшей"], [`${act.length} ${esc(_t("из"))} 5`, "Сессий с торговлей"]]));
+    },
+    hold(s, X) {
+      if (!X.hold.length) return wg("hold", emptyW("Биржа не отдала время входа"));
+      const d = X.hold.map((x) => x.d), g = HOLD.map((_, i) => X.byHold.get(i) || { k: i, n: 0, pnl: 0 });
+      const avg = g.map((x) => (x.n ? x.pnl / x.n : 0)), act = g.filter((x) => x.n).sort((a, b) => b.pnl / b.n - a.pnl / a.n);
+      return wg("hold", big(_t("Среднее время в сделке"), fmtDur(mean(d)), "", `${esc(_t("медиана"))} ${fmtDur(median(d))}`)
+        + `<div class="wg-viz">${svgBars(avg, 80, { bw: 5.5, labels: HOLD.map(([n], i) => `${esc(_t(n))}·${g[i].n}`) })}</div>`
+        + foot([[fmtDur(s.durWin), "Прибыльные держишь", "up"], [fmtDur(s.durLoss), "Убыточные держишь", "down"], [act[0] ? esc(_t(HOLD[act[0].k][0])) : "—", "Лучший интервал"], [act.length > 1 ? esc(_t(HOLD[act[act.length - 1].k][0])) : "—", "Худший интервал"]]));
+    },
+    side(s) {
+      const col = (k) => { const list = s.closed.filter((t) => t.side === k), x = stats(list); const d = list.filter((t) => t.openT).map((t) => t.closeT - t.openT); return `<div><div class="wg-cap"><span class="sd ${k === "long" ? "L" : "S"}">${k === "long" ? "LONG" : "SHORT"}</span></div>${big("", fmtUsd(x.net), cls(x.net), "", true)}<div class="wg-list" style="margin-top:6px">${li("Сделок", x.n)}${li("Win rate", x.n ? `${Math.round(x.winRate * 100)}%` : "—")}${li("Profit factor", x.n ? pfS(x.pf) : "—")}${li("Средняя сделка", x.n ? fmtUsd(x.expectancy) : "—", cls(x.expectancy))}${li("В сделке", fmtDur(mean(d)))}</div></div>`; };
+      return wg("side", `<div class="wg-two">${col("long")}${col("short")}</div>`);
+    },
+    lev(s, X) {
+      if (!X.byLev.size) return wg("lev", emptyW("Биржа не отдаёт плечо по сделкам"));
+      const g = LEV.map((_, i) => X.byLev.get(i) || { k: i, n: 0, pnl: 0 }), act = g.filter((x) => x.n).sort((a, b) => b.pnl / b.n - a.pnl / a.n);
+      const withLev = s.closed.filter((t) => t.lev), lo = withLev.filter((t) => t.lev <= 10).length;
+      return wg("lev", big(_t("Лучше всего работает"), act[0] ? esc(LEV[act[0].k][0]) : "—", "", act[0] ? `<span class="${cls(act[0].pnl)}">${fmtUsd(act[0].pnl / act[0].n)}</span> ${esc(_t("в среднем на сделку"))}` : "")
+        + `<div class="wg-viz">${svgBars(g.map((x) => (x.n ? x.pnl / x.n : 0)), 80, { bw: 5.5, labels: LEV.map(([n], i) => `${n}·${g[i].n}`) })}</div>`
+        + foot([[`×${mean(withLev.map((t) => t.lev)).toFixed(0)}`, "Среднее плечо"], [`${lo} ${esc(_t("из"))} ${withLev.length}`, "Сделок до ×10"], [String(withLev.length - lo), "Выше ×10"], [act.length > 1 ? esc(LEV[act[act.length - 1].k][0]) : "—", "Хуже всего"]]));
+    },
+    streak(s) {
+      const c = s.closed; let cur = 0;
+      for (let i = c.length - 1; i >= 0; i--) { const sg = Math.sign(c[i].pnl); if (!sg) break; if (!cur || Math.sign(cur) === sg) cur += sg; else break; }
+      const after = (cond) => { let n = 0, w = 0; for (let i = 2; i < c.length; i++) if (cond(i)) { n++; if (c[i].pnl > 0) w++; } return n ? `${Math.round((w / n) * 100)}%` : "—"; };
+      return wg("streak", big(_t("Текущая серия"), cur ? `${Math.abs(cur)} ${esc(_t(cur > 0 ? "в плюс" : "в минус"))}` : "—", cur > 0 ? "up" : cur < 0 ? "down" : "", esc(_t("сделок подряд")))
+        + foot([[`+${s.streakW}`, "Макс. серия прибылей", "up"], [`−${s.streakL}`, "Макс. серия убытков", "down"], [after((i) => c[i - 1].pnl < 0 && c[i - 2].pnl < 0), "Win rate после 2 убытков"], [after((i) => c[i - 1].pnl > 0), "Win rate после прибыли"]]));
+    },
+    revenge(s) {
+      const r = s.revenge;
+      if (!r.n) return wg("revenge", emptyW("Нет сделок сразу после убытка", "Хорошо: ты не пытаешься быстро отыграться."));
+      const w = r.w / r.n;
+      return wg("revenge", big(_t("Сделки в течение 30 минут после убытка"), fmtUsd(r.pnl), cls(r.pnl), `${r.n} ${esc(tradesWord(r.n))} · ${esc(_t(w < s.winRate ? "хуже, чем обычно" : "не хуже, чем обычно"))}`)
+        + foot([[`${Math.round(w * 100)}%`, "Win rate после убытка", w < s.winRate ? "down" : "up"], [`${Math.round(s.winRate * 100)}%`, "Win rate в целом"], [fmtUsd(r.pnl / r.n), "Средняя такая сделка", cls(r.pnl)]], "c3"));
+    },
+    perday(s, X) {
+      const d = X.days.slice(-45), v = d.map((x) => x.n), md = median(v) || 0;
+      const busy = X.days.filter((x) => x.n > md), calm = X.days.filter((x) => x.n <= md);
+      const bp = busy.reduce((a, x) => a + x.pnl, 0), cp = calm.reduce((a, x) => a + x.pnl, 0);
+      return wg("perday", big(_t("Сделок в торговый день"), (mean(X.days.map((x) => x.n)) || 0).toFixed(1), "", `${esc(_t("пик"))} ${Math.max(0, ...v)} · ${esc(_t("медиана"))} ${md}`)
+        + `<div class="wg-viz">${svgBars(v, 70, { mono: true })}</div>`
+        + foot([[fmtUsd(bp), "Дни с частой торговлей", cls(bp)], [fmtUsd(cp), "Спокойные дни", cls(cp)], [String(busy.length), "Частых дней"]], "c3"));
+    },
+    fees(s, X) {
+      const v = X.days.slice(-45).map((x) => x.fee || 0), peak = X.days.reduce((b, x) => (!b || (x.fee || 0) > (b.fee || 0) ? x : b), null);
+      return wg("fees", big(_t("Комиссии за период"), fmtUsd(-s.fees), s.fees ? "down" : "", `${fmtUsd(-s.fees / Math.max(1, s.n))} ${esc(_t("на сделку"))}`)
+        + `<div class="wg-viz">${svgBars(v, 64, { mono: true })}</div>`
+        + foot([[s.grossWin ? `${Math.round((s.fees / s.grossWin) * 100)}%` : "—", "От прибыльных сделок"], [s.net ? `${Math.round((s.fees / Math.abs(s.net)) * 100)}%` : "—", "От итога"], [peak && peak.fee ? fmtUsd(-peak.fee) : "—", "Самый дорогой день", "down"]], "c3"));
+    },
+    funding(s) {
+      const f = s.closed.map((t) => t.funding || 0), paid = f.filter((x) => x < 0).reduce((a, x) => a + x, 0), got = f.filter((x) => x > 0).reduce((a, x) => a + x, 0);
+      return wg("funding", big(_t("Фандинг, итог"), fmtUsd(s.funding), cls(s.funding), esc(_t("плюс — получил, минус — заплатил")))
+        + foot([[fmtUsd(paid), "Заплатил", paid ? "down" : ""], [fmtUsd(got), "Получил", got ? "up" : ""], [s.net ? `${Math.round((Math.abs(s.funding) / Math.abs(s.net)) * 100)}%` : "—", "От итога"], [String(f.filter((x) => x).length), "Сделок с фандингом"]]));
+    },
+    exch(s) {
+      if (s.byEx.length < 2) return null;
+      return wg("exch", hbars(s.byEx.sort((a, b) => b.pnl - a.pnl).map((g) => ({ k: EX[g.k] ? EX[g.k].name.replace(" Futures", "") : g.k, v: g.pnl, sub: ` · ${g.n} · ${wr(g)}` }))));
+    },
+  };
+
+  function overviewHtml(s) {
+    const X = ext(s), cfg = wgCfg();
+    const parts = cfg.order.filter((id) => !cfg.off.includes(id)).map((id) => { try { return WG[id](s, X); } catch (e) { console.warn("widget", id, e); return ""; } }).filter(Boolean);
+    return parts.length ? `<div class="wg-grid">${parts.join("")}</div>` : `<div class="jr-empty glass"><p>${esc(_t("Все виджеты выключены — включи нужные в «Виджеты»."))}</p></div>`;
+  }
+
+  // ---------------------------------------------------------------- список сделок с фильтрами
+  function tradesViewHtml(s) {
+    const F = S.tf || (S.tf = { side: "all", res: "all", sym: "all", tag: "all" });
+    const base = s.open.concat(s.closed.slice().reverse());
+    const syms = [...new Set(base.map((t) => t.sym))].sort(), tags = [...new Set(base.flatMap(tagsOf))];
+    if (!syms.includes(F.sym)) F.sym = "all";
+    if (!tags.includes(F.tag)) F.tag = "all";
+    const list = base.filter((t) => (F.side === "all" || t.side === F.side) && (F.res === "all" || (F.res === "win" ? t.pnl > 0 : t.pnl < 0) && !t.open)
+      && (F.sym === "all" || t.sym === F.sym) && (F.tag === "all" || tagsOf(t).includes(F.tag)));
+    const sel = (k, opts) => `<select data-tf="${k}" aria-label="${esc(opts[0][1])}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${F[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    const x = stats(list);
+    let h = `<div class="jr-flt">${sel("side", [["all", _t("Все стороны")], ["long", "Long"], ["short", "Short"]])}${sel("res", [["all", _t("Любой результат")], ["win", _t("В плюс")], ["loss", _t("В минус")]])}${sel("sym", [["all", _t("Все монеты")], ...syms.map((v) => [v, v])])}${tags.length ? sel("tag", [["all", _t("Все теги")], ...tags.map((v) => [v, _t(v)])]) : ""}</div>`;
+    h += `<div class="jr-sum"><span>${esc(_t("Сделок"))} <b>${list.length}</b></span><span>${esc(_t("Итог"))} <b class="${cls(x.net)}">${fmtUsd(x.net)}</b></span><span>Win rate <b>${Math.round(x.winRate * 100)}%</b></span><span>PF <b>${pfS(x.pf)}</b></span></div>`;
+    S._list = list;
+    return h + `<div class="jr-trades" id="jr-trades"></div>`;
+  }
+
+  function widgetsSheet() {
+    const sh = $("#jr-sheet"), keep = sh.querySelector(".wg-cfg"), top = keep ? keep.scrollTop : 0;
+    const c = wgCfg(), n = c.order.length;
+    sh.innerHTML = `<div class="jr-sheet-in glass">
+      <div class="jr-sh-h"><b>${esc(_t("Виджеты"))}</b><button class="pc-x sm" data-j="sheet-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
+      <small class="jr-note-s">${esc(_t("Включай нужные и меняй порядок стрелками. Настройка хранится на этом устройстве."))}</small>
+      <div class="wg-cfg">${c.order.map((id, i) => { const on = !c.off.includes(id); return `<div class="wg-cfg-r ${on ? "" : "off"}"><span>${esc(_t(WG_NAME[id]))}</span><button data-j="wg-mv" data-v="${id}" data-d="-1" ${i ? "" : "disabled"} aria-label="${esc(_t("Выше"))}">↑</button><button data-j="wg-mv" data-v="${id}" data-d="1" ${i < n - 1 ? "" : "disabled"} aria-label="${esc(_t("Ниже"))}">↓</button><button class="tg ${on ? "on" : ""}" data-j="wg-tg" data-v="${id}" role="switch" aria-checked="${on}" aria-label="${esc(_t(WG_NAME[id]))}"></button></div>`; }).join("")}</div>
+      <button class="jr-more" data-j="wg-reset" style="border-radius:12px;background:var(--surface-2)">${esc(_t("Вернуть как было"))}</button></div>`;
+    sh.hidden = false;
+    const box = sh.querySelector(".wg-cfg"); if (box) box.scrollTop = top;
+    requestAnimationFrame(() => sh.classList.add("show"));
+  }
+  function wgAction(act, id, dir) {
+    const c = wgCfg();
+    if (act === "wg-tg") c.off = c.off.includes(id) ? c.off.filter((x) => x !== id) : c.off.concat(id);
+    else if (act === "wg-mv") { const i = c.order.indexOf(id), j = i + dir; if (j >= 0 && j < c.order.length) { c.order.splice(i, 1); c.order.splice(j, 0, id); } }
+    if (act === "wg-reset") { try { localStorage.removeItem(WG_KEY); } catch (e) { /* noop */ } } else wgSave(c);
+    widgetsSheet(); render();
+  }
+
   // ================================================================ разметка
   function shell() {
     let el = $("#jr");
@@ -645,6 +1012,7 @@
       <div class="jr-sheet" id="jr-sheet" hidden></div>`;
     document.body.appendChild(el);
     el.addEventListener("click", onClick);
+    el.addEventListener("change", (e) => { const f = e.target.closest("[data-tf]"); if (!f) return; S.tf = Object.assign({}, S.tf, { [f.dataset.tf]: f.value }); S.showAll = false; S.expanded = null; render(); });
     return el;
   }
 
@@ -666,7 +1034,11 @@
     else if (act === "ai") aiReview(a);
     else if (act === "tag") toggleTag(v, a.dataset.tag);
     else if (act === "more") { S.showAll = true; renderTrades(); }
-    else if (act === "view") { S.view = v; S.expanded = null; S.showAll = false; render(); }
+    else if (act === "view") { S.view = v; S.expanded = null; S.showAll = false; render(); $("#jr-body").scrollTop = 0; }
+    else if (act === "goto") { S.view = "trades"; S.tf = null; S.expanded = v; S.showAll = true; render(); const r = document.querySelector(`.jr-tr.open`); if (r) r.scrollIntoView({ block: "center" }); }
+    else if (act === "widgets") widgetsSheet();
+    else if (act === "wg-tg" || act === "wg-mv" || act === "wg-reset") wgAction(act, v, +a.dataset.d || 0);
+    else if (act === "tab") { close(); setTimeout(() => { const b = document.querySelector(`.nav-btn[data-tab="${v}"]`); if (b) b.click(); }, 120); }
     else if (act === "cal-month") { const d = calMonth(); S.calMonth = new Date(d.getFullYear(), d.getMonth() + +v, 1); S.calDay = null; render(); }
     else if (act === "cal-unit") { S.calUnit = v; try { localStorage.setItem("amq-jr-unit", v); } catch (er) { /* noop */ } render(); }
     else if (act === "cal-day") { S.calDay = S.calDay === v ? null : v; S.expanded = null; render(); }
@@ -678,6 +1050,7 @@
     return src.filter((t) => (S.exFilter === "all" || t.ex === S.exFilter) && (t.open || (t.closeT || 0) >= from));
   }
 
+  const ICON_GRID = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
   function render() {
     if (!S.open) return;
     const body = $("#jr-body");
@@ -687,46 +1060,24 @@
     if (!S.conns.length && !S.demo) { body.innerHTML = onboarding(); return; }
     const all = filtered(), s = stats(all);
     const exs = [...new Set((S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades).map((t) => t.ex))];
-    let h = "";
+    const view = S.view === "calendar" || S.view === "trades" ? S.view : "overview";
+    let h = `<div class="jr-wrap">${DEFS}`;
     if (S.demo) h += `<div class="jr-demo">${esc(_t("Это пример на выдуманных сделках."))} <button data-j="exit-demo">${esc(_t("Подключить свою биржу"))}</button></div>`;
     h += `<div class="jr-status" id="jr-status">${statusHtml()}</div>`;
-    h += `<div class="jr-views"><button class="${S.view !== "calendar" ? "on" : ""}" data-j="view" data-v="summary">${esc(_t("Сводка"))}</button><button class="${S.view === "calendar" ? "on" : ""}" data-j="view" data-v="calendar">${esc(_t("Календарь"))}</button></div>`;
-    const cal = S.view === "calendar";
-    h += `<div class="jr-filters">${cal ? "" : `<div class="jr-seg">${[[7, "7д"], [30, "30д"], [90, "90д"], [0, "Всё"]].map(([v, l]) => `<button class="${S.period === v ? "on" : ""}" data-j="period" data-v="${v}">${esc(_t(l))}</button>`).join("")}</div>`}`
-      + (exs.length > 1 ? `<div class="jr-seg">${["all", ...exs].map((x) => `<button class="${S.exFilter === x ? "on" : ""}" data-j="exf" data-v="${x}">${esc(x === "all" ? _t("Все") : EX[x].name.replace(" Futures", ""))}</button>`).join("")}</div>` : "") + `</div>`;
-    if (cal) { h += calendarHtml(); body.innerHTML = h; renderTrades(); return; }
-    if (!s.n) {
-      h += `<div class="jr-empty glass"><p>${esc(S.syncing ? _t("Загружаю сделки с биржи…") : _t("За этот период закрытых сделок нет."))}</p></div>`;
+    h += `<div class="jr-bar"><div class="jr-views">${[["overview", "Обзор"], ["trades", "Сделки"], ["calendar", "Календарь"]].map(([k, l]) => `<button class="${view === k ? "on" : ""}" data-j="view" data-v="${k}">${esc(_t(l))}</button>`).join("")}</div><span class="grow"></span>`
+      + (view === "overview" ? `<button class="jr-tool" data-j="widgets">${ICON_GRID}${esc(_t("Виджеты"))}</button>` : "") + `</div><div class="jr-bar jr-bar2">`
+      + (view === "calendar" ? "" : `<div class="jr-seg">${[[7, "7д"], [30, "30д"], [90, "90д"], [0, "Всё"]].map(([v, l]) => `<button class="${S.period === v ? "on" : ""}" data-j="period" data-v="${v}">${esc(_t(l))}</button>`).join("")}</div>`)
+      + (exs.length > 1 ? `<div class="jr-seg">${["all", ...exs].map((x) => `<button class="${S.exFilter === x ? "on" : ""}" data-j="exf" data-v="${x}">${esc(x === "all" ? _t("Все") : EX[x].name.replace(" Futures", ""))}</button>`).join("")}</div>` : "")
+      + `</div>`;
+    if (view === "calendar") { h += calendarHtml() + `</div>`; body.innerHTML = h; renderTrades(); return; }
+    if (!s.n && (view === "overview" || !s.open.length)) {
+      h += `<div class="jr-empty glass"><p>${esc(S.syncing ? _t("Загружаю сделки с биржи…") : _t("За этот период закрытых сделок нет."))}</p></div></div>`;
       body.innerHTML = h; return;
     }
-    h += `<div class="jr-hero glass"><span>${esc(_t("Итог за период"))}</span><b class="${cls(s.net)}">${fmtUsd(s.net)}</b>
-      <small>${s.n} ${esc(_t("сделок"))} · ${esc(_t("комиссии"))} ${fmtUsd(-s.fees, false)} · ${esc(_t("фандинг"))} ${fmtUsd(s.funding)}</small>${curveSvg(s)}</div>`;
-    const kpi = [
-      [_t("Win rate"), `${Math.round(s.winRate * 100)}%`, `${s.wins} / ${s.losses}`, _t("Доля прибыльных сделок")],
-      [_t("Profit factor"), s.pf === Infinity ? "∞" : s.pf.toFixed(2), s.pf >= 1.5 ? _t("сильно") : s.pf >= 1 ? _t("в плюсе") : _t("в минусе"), _t("Сумма прибылей / сумма убытков. Больше 1 — торговля прибыльна")],
-      [_t("Ср. прибыль"), fmtUsd(s.avgWin), `${_t("убыток")} ${fmtUsd(-s.avgLoss)}`, _t("Средний результат прибыльной и убыточной сделки")],
-      [_t("Ожидание"), fmtUsd(s.expectancy), _t("на сделку"), _t("Сколько в среднем приносит одна сделка")],
-      [_t("Макс. просадка"), fmtUsd(-s.maxDD), s.ddFrom ? `${fmtDate(s.ddFrom).split(",")[0]} → ${fmtDate(s.ddTo).split(",")[0]}` : "", _t("Самое глубокое падение кривой доходности от пика")],
-      [_t("Серии"), `+${s.streakW} / −${s.streakL}`, _t("подряд"), _t("Самые длинные серии прибыльных и убыточных сделок")],
-    ];
-    h += `<div class="jr-kpis">${kpi.map(([a, b, c, d]) => `<div class="glass"><span>${esc(a)}</span><b>${esc(b)}</b><small>${esc(c)}</small><em class="simple-only">${esc(d)}</em></div>`).join("")}</div>`;
-    const ins = insights(s);
-    h += `<div class="section-title">${esc(_t("Выводы"))} <small>${esc(_t("по твоим сделкам"))}</small></div>
-      <div class="jr-ins glass">${ins.length ? ins.map(([k, t]) => `<p class="${k}"><i></i>${esc(t)}</p>`).join("") : `<p class="info"><i></i>${esc(_t("Пока мало сделок для выводов — нужно хотя бы 10–20."))}</p>`}
-        <button class="jr-ai" data-j="ai"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l1.8 4.9L19 9.7l-4.3 3 1.4 5.3L12 15l-4.1 3 1.4-5.3L5 9.7l5.2-1.8z" fill="currentColor"/></svg>${esc(_t("ИИ-разбор торговли"))}<i class="pc-pro">PRO</i></button>
-        <div class="jr-ai-out" id="jr-ai-out"></div></div>`;
-    const sideMap = Object.fromEntries(s.bySide.map((g) => [g.k, g]));
-    h += `<div class="jr-two">
-      <div class="glass jr-box"><div class="jr-h">${esc(_t("Лонг / шорт"))}</div>${["long", "short"].map((k) => { const g = sideMap[k] || { n: 0, w: 0, pnl: 0 }; return `<div class="jr-row"><span class="side ${k === "long" ? "LONG" : "SHORT"}">${k === "long" ? "LONG" : "SHORT"}</span><span>${g.n} · ${g.n ? Math.round((g.w / g.n) * 100) : 0}%</span><b class="${cls(g.pnl)}">${fmtUsd(g.pnl)}</b></div>`; }).join("")}</div>
-      <div class="glass jr-box"><div class="jr-h">${esc(_t("Монеты"))}</div>${s.bySym.slice(0, 3).concat(s.bySym.length > 3 ? s.bySym.slice(-2).filter((g) => g.pnl < 0) : []).map((g) => `<div class="jr-row"><span><b>${esc(g.k)}</b></span><span>${g.n} · ${Math.round((g.w / g.n) * 100)}%</span><b class="${cls(g.pnl)}">${fmtUsd(g.pnl)}</b></div>`).join("")}</div>
-    </div>`;
-    h += `<div class="glass jr-box"><div class="jr-h">${esc(_t("Дни недели"))}</div>${barsHtml(s.byDow, 7, (i) => [_t("Пн"), _t("Вт"), _t("Ср"), _t("Чт"), _t("Пт"), _t("Сб"), _t("Вс")][i])}</div>`;
-    if (s.open.length) h += `<div class="section-title">${esc(_t("Открытые позиции"))} <small>${s.open.length}</small></div>`;
-    h += `<div class="section-title">${esc(_t("Сделки"))} <small>${s.n}</small></div><div class="jr-trades" id="jr-trades"></div>`;
-    h += `<p class="hint">${esc(_t("Ключи хранятся только на этом устройстве и не отправляются на наш сервер. Результаты — по данным биржи; позиции, открытые до начала истории, считаются по реализованному PnL."))}</p>`;
+    if (view === "trades") { h += tradesViewHtml(s) + `</div>`; body.innerHTML = h; renderTrades(); return; }
+    h += overviewHtml(s);
+    h += `<p class="hint">${esc(_t("Ключи хранятся только на этом устройстве и не отправляются на наш сервер. Результаты — по данным биржи; позиции, открытые до начала истории, считаются по реализованному PnL."))}</p></div>`;
     body.innerHTML = h;
-    S._list = s.closed.slice().reverse().concat(s.open);
-    renderTrades();
   }
 
   function statusHtml() {
@@ -868,8 +1219,9 @@
       const pct = t.notional ? (t.pnl / t.notional) * 100 : null;
       return `<div class="jr-tr glass ${open ? "open" : ""}">
         <button class="jr-tr-h" data-j="trade" data-v="${esc(t.id)}">
-          <span class="side ${t.side === "long" ? "LONG" : "SHORT"}">${t.side === "long" ? "L" : "S"}</span>
-          <span class="jr-tr-s"><b>${esc(t.sym)}</b><small>${esc(EX[t.ex] ? EX[t.ex].name.replace(" Futures", "") : t.ex)} · ${t.open ? esc(_t("открыта")) : fmtDate(t.closeT)}${(n.tags || []).length ? " · " + n.tags.map((x) => esc(_t(x))).join(", ") : ""}</small></span>
+          <span class="sd ${t.side === "long" ? "L" : "S"}">${t.side === "long" ? "LONG" : "SHORT"}</span>
+          <span class="jr-tr-s"><b>${esc(t.sym)}</b><small>${esc(EX[t.ex] ? EX[t.ex].name.replace(" Futures", "") : t.ex)} · ${t.open ? esc(_t("открыта")) : fmtDate(t.closeT)}${tagsOf(t).length ? " · " + tagsOf(t).map((x) => esc(_t(x))).join(", ") : ""}</small></span>
+          <span class="jr-tr-m"><span>${t.openT && t.closeT ? fmtDur(t.closeT - t.openT) : "—"}</span><span>${t.lev ? `×${t.lev}` : "—"}</span><span>${fmtUsd(t.notional, false)}</span></span>
           <span class="jr-tr-p"><b class="${cls(t.pnl)}">${t.open ? "—" : fmtUsd(t.pnl)}</b><small>${pct != null && !t.open ? `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""}</small></span>
         </button>
         ${open ? `<div class="jr-tr-d">
@@ -877,7 +1229,7 @@
           <span>${esc(_t("Объём"))}</span><b>${fmtUsd(t.notional, false)}</b><span>${esc(_t("Время в сделке"))}</span><b>${t.openT && t.closeT ? fmtDur(t.closeT - t.openT) : "—"}</b>
           <span>${esc(_t("Комиссии"))}</span><b>${fmtUsd(-(t.fee || 0), false)}</b><span>${esc(_t("Фандинг"))}</span><b>${fmtUsd(t.funding || 0)}</b>
           ${t.lev ? `<span>${esc(_t("Плечо"))}</span><b>${t.lev}x</b>` : ""}${t.partial ? `<span></span><small>${esc(_t("вход до начала истории"))}</small>` : ""}</div>
-          <div class="jr-tags">${TAGS.map((g) => `<button class="${(n.tags || []).includes(g) ? "on" : ""}" data-j="tag" data-v="${esc(t.id)}" data-tag="${esc(g)}">${esc(_t(g))}</button>`).join("")}</div>
+          <div class="jr-tags">${TAGS.map((g) => `<button class="${tagsOf(t).includes(g) ? "on" : ""}" data-j="tag" data-v="${esc(t.id)}" data-tag="${esc(g)}">${esc(_t(g))}</button>`).join("")}</div>
           <textarea class="jr-note" data-note="${esc(t.id)}" placeholder="${esc(_t("Заметка: почему вошёл, что пошло не так…"))}">${esc(n.note || "")}</textarea>
         </div>` : ""}
       </div>`;
@@ -888,7 +1240,8 @@
     }));
   }
   async function toggleTag(id, tag) {
-    const n = S.notes[id] = Object.assign({ tags: [] }, S.notes[id]);
+    const tr = (S._list || []).find((x) => x.id === id);
+    const n = S.notes[id] = Object.assign({ tags: tr && tr.dtags ? tr.dtags.slice() : [] }, S.notes[id]);
     n.tags = n.tags.includes(tag) ? n.tags.filter((x) => x !== tag) : n.tags.concat(tag);
     try { await kvSet("notes", S.notes); } catch (e) { /* noop */ }
     renderTrades();

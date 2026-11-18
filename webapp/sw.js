@@ -2,9 +2,10 @@
    Регистрируется только вне Telegram (в установленном приложении и в браузере). */
 try { importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js"); } catch (e) { /* без пушей */ }
 
-const CACHE = "mcq-shell-v6";
+const CACHE = "mcq-shell-v7";
 const SHELL = ["./", "index.html", "style.css", "app.js", "auth.js", "prochart.js", "journal.js", "pro.js", "tour.js", "i18n.js", "sessions.js", "mark.svg", "bg.jpg",
-  "manifest.webmanifest", "icons/icon-192.png"];
+  "manifest.webmanifest", "icons/icon-192.png",
+  "fonts/manrope-latin-wght-normal.woff2", "fonts/manrope-cyrillic-wght-normal.woff2"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => null)))));

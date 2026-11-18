@@ -1189,7 +1189,7 @@
   });
   const jrBtn = $("#jr-open");
   if (jrBtn) jrBtn.addEventListener("click", () => { haptic(); if (window.Journal) window.Journal.open(); });
-  window.McQ = { sig: () => state.sig, mode: () => state.mode, setMode: (m) => setMode(m) };
+  window.McQ = { sig: () => state.sig, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data };
   window.addEventListener("hashchange", routeHash);
 
   mountDominance();
