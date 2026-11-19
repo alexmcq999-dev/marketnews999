@@ -425,3 +425,65 @@ html.is-pro .profile-btn::after { display: none; }
 .pro-ic { background: var(--surface-2); border-color: rgba(200,176,138,.25); }
 html.is-pro .pro-status { background: rgba(200,176,138,.06); }
 .tour-card, .tour-card.glass { background: #141416; }
+
+/* ---------------------------------------------------------------- «Журнал» в нижней панели (на компьютере — в шапке) */
+@media (min-width: 1024px) { .nav-btn.nav-jr { display: none !important; } }
+
+/* ---------------------------------------------------------------- графики TradingView: свой фон, кнопка «на весь экран» */
+#tv-chart iframe { color-scheme: normal; background: #0E0E10; }
+.chart-box { position: relative; }
+.chart-fs { position: absolute; z-index: 5; right: 10px; bottom: 44px; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 10px;
+  background: rgba(20,20,22,.92); color: var(--text-2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); cursor: pointer; }
+.chart-fs:hover { color: var(--text); }
+.chart-box.fs { position: fixed !important; inset: 0; z-index: 400; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important;
+  border-radius: 0 !important; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); background: #0E0E10; }
+.chart-box.fs #tv-chart iframe { border-radius: 0; }
+.chart-box.fs .chart-fs { top: calc(env(safe-area-inset-top, 0px) + 10px); bottom: auto; right: 64px; }
+html.chart-fs body { overflow: hidden; }
+html.chart-fs .tabbar { display: none; }
+
+/* ---------------------------------------------------------------- Pro Chart: на весь экран */
+.pc-fs-btn { margin-left: 4px; }
+.pc.fs { top: 0 !important; z-index: 400; }
+.pc.fs .pc-stats, .pc.fs .pc-ex { display: none; }
+html.pc-fs .tabbar { display: none; }
+
+/* ---------------------------------------------------------------- Pro Chart: моя позиция */
+.pc-pos { display: flex; flex-direction: column; gap: 10px; margin: 2px 12px 8px; padding: 12px; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--hair-2); }
+.pc-pos[hidden] { display: none; }
+.pp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.pp-side { display: flex; padding: 3px; border-radius: 10px; background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--hair-2); }
+.pp-side button { border: 0; background: transparent; color: var(--text-m); font: 600 12.5px var(--font); padding: 8px 12px; border-radius: 7px; cursor: pointer; min-height: 36px; }
+.pp-side button.on.long { background: rgba(63,182,139,.16); color: var(--up); }
+.pp-side button.on.short { background: rgba(224,100,90,.16); color: var(--down); }
+.pp-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 110px; }
+.pp-f > span:first-child { font-size: 11px; color: var(--text-m); }
+.pp-in { display: flex; align-items: center; border-radius: 9px; background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--hair-2); }
+.pp-in:focus-within { box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+.pp-in input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: 600 14px var(--font); padding: 9px 10px; font-variant-numeric: tabular-nums; }
+.pp-in button { flex: none; width: 34px; height: 34px; border: 0; background: transparent; color: var(--text-m); cursor: pointer; display: grid; place-items: center; border-radius: 8px; }
+.pp-in button.on { color: #0B0B0C; background: var(--gold); }
+.pp-act { align-items: center; }
+.pp-save { border: 0; border-radius: 10px; padding: 10px 16px; background: var(--text); color: #0B0B0C; font: 600 13.5px var(--font); cursor: pointer; }
+.pp-del { border: 0; border-radius: 10px; padding: 10px 14px; background: var(--surface-2); color: var(--down); font: 600 13px var(--font); cursor: pointer; box-shadow: inset 0 0 0 1px var(--hair-2); }
+.pp-act small { flex: 1 1 220px; font-size: 11.5px; color: var(--text-3); line-height: 1.45; }
+.pp-err { margin: 0; font-size: 12.5px; color: var(--down); }
+.pp-err:empty { display: none; }
+.pc-chart-wrap.picking { cursor: crosshair; }
+.pc-chart-wrap.picking .pc-chart { box-shadow: inset 0 0 0 1px rgba(200,176,138,.5); border-radius: 10px; }
+.pc-posbadge { position: absolute; z-index: 4; left: 8px; bottom: 34px; display: flex; flex-direction: column; gap: 4px; min-width: 200px; max-width: calc(100% - 90px);
+  padding: 10px 12px; border-radius: 12px; background: rgba(17,17,19,.94); box-shadow: inset 0 0 0 1px rgba(255,255,255,.09), 0 12px 28px -14px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
+.pc-posbadge[hidden] { display: none; }
+.pb-top { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-m); flex-wrap: wrap; }
+.pb-top b { color: var(--text); font-weight: 600; }
+.pb-side { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; }
+.pb-side.long { color: var(--up); background: rgba(63,182,139,.12); } .pb-side.short { color: var(--down); background: rgba(224,100,90,.12); }
+.pb-hit { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; color: #0B0B0C; }
+.pb-hit.tp { background: var(--up); } .pb-hit.sl { background: var(--down); }
+.pb-pnl { display: flex; align-items: baseline; gap: 8px; }
+.pb-pnl b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.pb-pnl span { font-size: 12px; font-weight: 600; }
+.pb-pnl.up b, .pb-pnl.up span { color: var(--up); } .pb-pnl.down b, .pb-pnl.down span { color: var(--down); }
+.pb-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--text-m); }
+.pb-row b { font-weight: 600; } .pb-row b.up { color: var(--up); } .pb-row b.down { color: var(--down); }
+.pb-src { font-size: 10.5px; color: var(--text-3); }

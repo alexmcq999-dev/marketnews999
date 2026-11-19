@@ -160,17 +160,14 @@
         const r = await fetch(`${u}?t=${Date.now()}`, { cache: "no-store" });
         if (!r.ok) continue;
         state.sig = await r.json();
-        renderSignals();
         if (state.tab === "charts") renderLiq();
         return;
       } catch (e) { /* пробуем следующий источник */ }
     }
-    if (!state.sig) renderSignals();
   }
 
   function renderAll() {
     renderOverview();
-    renderSignals();
     renderNews();
     renderCalendar();
     renderChartControls();
@@ -384,214 +381,6 @@
         if (TV[a]) { state.asset = a; switchTab("charts"); }
       }));
   }
-
-  // ---------------------------------------------------------------- сигналы
-  function fmtPrice(v) {
-    if (v == null || isNaN(v)) return "—";
-    const a = Math.abs(v);
-    const dec = a >= 1000 ? 2 : a >= 1 ? 4 : a >= 0.01 ? 5 : 8;
-    return Number(v).toLocaleString(LOCALE, { maximumFractionDigits: dec });
-  }
-  function rCls(v) { return v > 0.001 ? "up" : v < -0.001 ? "down" : ""; }
-  function fmtR(v) { return v == null || isNaN(v) ? "—" : `${v > 0 ? "+" : ""}${Number(v).toFixed(2)}R`; }
-
-  // ---------------------------------------------------------------- сигналы: две подачи — для новичка и для продвинутого
-  const pct = (a, b) => (b / a - 1) * 100;
-  const fmtPct = (v, dec = 1) => (v == null || isNaN(v) ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(dec)}%`);
-  const sideWord = (t) => (t.side === "LONG" ? _t("Покупка") : _t("Продажа"));
-  const EXIT_NB = { sl: _t("сработал стоп"), tp2: _t("цель 2"), be: _t("в ноль после цели"), trail: _t("прибыль зафиксирована"), timeout: _t("закрыта по времени") };
-
-  // шкала «стоп → цель» с текущей ценой: понятна без слов
-  function levelBar(t) {
-    const span = t.tp1 - t.sl;
-    if (!span || t.price == null) return "";
-    const x = (p) => Math.max(0, Math.min(100, ((p - t.sl) / span) * 100));
-    const pe = x(t.entry), pp = x(t.price);
-    const good = (t.price - t.entry) * (t.side === "LONG" ? 1 : -1) >= 0;
-    return `<div class="lbar" aria-hidden="true">
-      <span class="lb-track">${t.status === "pending" ? "" : `<span class="lb-fill ${good ? "up" : "down"}" style="left:${Math.min(pe, pp)}%;width:${Math.abs(pp - pe)}%"></span>`}
-        <span class="lb-entry" style="left:${pe}%"></span><span class="lb-now" style="left:${pp}%"></span></span>
-      <span class="lb-labels"><span>${_t("стоп")}</span><span>${_t("цель")}</span></span>
-    </div>`;
-  }
-
-  function nbCard(t, riskPct) {
-    const move = t.price != null ? pct(t.entry, t.price) * (t.side === "LONG" ? 1 : -1) : null;
-    const status = t.status === "pending" ? `<span class="nb-st wait">${_t("ждёт цену входа")}</span>`
-      : t.status === "tp1" ? `<span class="nb-st up">${_t("цель взята ✓")}</span>`
-      : move == null ? "" : `<span class="nb-st ${move >= 0 ? "up" : "down"}">${move >= 0 ? _t("в плюсе") : _t("в минусе")} ${fmtPct(Math.abs(move))}</span>`;
-    const ex = 10, tpR = (state.sig.exit || {}).tp1_r || 1.5;
-    return `<article class="sig-card nb glass pressable" data-sym="${esc(t.symbol)}" aria-label="${sideWord(t)} ${esc(t.symbol)}, ${_t("открыть график")}">
-      <div class="nb-head"><span class="dir ${esc(t.side)}">${t.side === "LONG" ? "↑" : "↓"} ${sideWord(t)}</span><span class="nb-sym">${esc(t.symbol)}</span>${status}</div>
-      ${levelBar(t)}
-      <ol class="nb-steps">
-        <li><i>1</i><span>${t.status === "pending" ? _t("Войти, когда цена дойдёт до") : _t("Вход")}</span><b>${fmtPrice(t.entry)}</b></li>
-        <li><i>2</i><span>${_t("Защитный стоп")}</span><b class="down">${fmtPrice(t.sl)} <small>${fmtPct(pct(t.entry, t.sl))}</small></b></li>
-        <li><i>3</i><span>${_t("Цель")}</span><b class="up">${fmtPrice(t.tp1)} <small>${fmtPct(pct(t.entry, t.tp1))}</small></b></li>
-      </ol>
-      <div class="nb-money">${_t("Пример: рискуешь")} <b>$${ex}</b> → ${_t("на цели")} <b class="up">+$${(ex * tpR).toFixed(0)}</b>, ${_t("на стопе")} <b class="down">−$${ex}</b></div>
-    </article>`;
-  }
-
-  function proCard(t, riskPct) {
-    const conf = Math.max(0, Math.min(100, t.conf || 0));
-    const slp = Math.abs(pct(t.entry, t.sl));
-    const size = slp ? (riskPct / slp) * 100 : null;
-    return `<article class="sig-card pr glass pressable" data-sym="${esc(t.symbol)}" aria-label="${esc(t.side)} ${esc(t.symbol)}, ${_t("открыть график")}">
-      <div class="sig-top">
-        <span class="side ${esc(t.side)}">${esc(t.side)}</span>
-        <span class="sig-sym">${esc(t.symbol)}</span><span class="pr-id">#${esc(t.id)}</span>
-        ${t.kind === "breakout" ? `<span class="badge bo">${_t("пробой")}</span>` : ""}
-        ${t.status === "pending" ? `<span class="badge pend">${_t("лимит")}</span>` : ""}
-        ${t.status === "tp1" ? `<span class="badge tp">TP1 ✓ · ${_t("стоп б/у")}</span>` : ""}
-        <span class="sig-r"><span class="r ${rCls(t.r_open)}">${fmtR(t.r_open)}</span><small>${ago(t.opened)}</small></span>
-      </div>
-      <div class="pr-grid">
-        <div><span>${t.status === "pending" ? _t("Лимит") : _t("Вход")}</span><b>${fmtPrice(t.entry)}</b></div>
-        <div><span>${_t("Стоп")}</span><b class="down">${fmtPrice(t.sl)}</b><em>${fmtPct(pct(t.entry, t.sl), 2)}</em></div>
-        <div><span>TP1 · ${(state.sig.exit || {}).tp1_r || 1.5}R</span><b class="up">${fmtPrice(t.tp1)}</b><em>${fmtPct(pct(t.entry, t.tp1), 2)}</em></div>
-        <div><span>${_t("Цена")}</span><b>${fmtPrice(t.price)}</b><em>${t.price != null ? fmtPct(pct(t.entry, t.price), 2) : ""}</em></div>
-        <div><span>${_t("Позиция")}</span><b>${size ? size.toFixed(0) + "%" : "—"}</b><em>${_t("депо · риск")} ${riskPct}%</em></div>
-        <div><span>${_t("Режим")}</span><b>${esc({ trend: _t("тренд"), range: _t("флэт"), neutral: _t("переходный") }[t.regime] || t.regime || "—")}</b><em>${fmtTime(t.opened, true)}</em></div>
-      </div>
-      <div class="conf"><span>${_t("Сила")}</span><span class="track"><span class="fill" style="width:${conf}%"></span></span><b>${Math.round(conf)}</b></div>
-      ${(t.reasons || []).length ? `<div class="reasons">${t.reasons.map((x) => esc(_t(x))).join(" · ")}</div>` : ""}
-      <div class="pr-exit">${_t("После TP1: 50% закрыть, стоп в б/у, остаток — трейлинг")} ${(state.sig.exit || {}).trail_atr || 3}×ATR</div>
-    </article>`;
-  }
-
-  function renderSignals() {
-    const box = $("#signals-body") || $("#tab-signals");
-    if (!box) return;
-    const d = state.sig;
-    if (!d) {
-      box.innerHTML = `<div class="glass card empty">${_t("Загружаю сигналы…")}<br><small>${_t("Если долго пусто — бот ещё не опубликовал данные.")}</small></div>`;
-      return;
-    }
-    const nb = state.mode === "simple";
-    const riskPct = d.risk_pct || 0.5;
-    const tf = d.timeframes || {};
-    let h = "";
-    if (d.test_mode) {
-      h += `<div class="test-banner"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>${_t("Тестовый режим")}</b>${_t("Сигналы публикуются для проверки стратегии на живом рынке. Не используй их для реальной торговли.")}</div></div>`;
-    }
-    if (nb) {
-      h += `<div class="nb-intro glass"><div class="nb-intro-t">${_t("Как это работает")}</div>
-        <div class="nb-how"><span><i>1</i>${_t("Бот сам ищет сделку по тренду")}</span><span><i>2</i>${_t("Даёт вход, стоп и цель")}</span><span><i>3</i>${_t("Сообщает, когда цель или стоп сработали")}</span></div>
-        <p class="explain">${_t("Стоп ограничивает убыток, цель — первая фиксация прибыли. Больше одной сделки за раз — не больше")} ${riskPct}% ${_t("депозита риска на каждую.")}</p></div>`;
-    } else {
-      h += `<div class="sig-head glass"><div class="k">McQ Signals · ${_t("стратегия")}</div>
-        <div class="t">${esc((tf.entry || "").toUpperCase())} ${_t("вход +")} ${esc((tf.confirm || "").toUpperCase())} ${_t("тренд + BTC фильтр")}</div>
-        <div class="s">${d.coins || "—"} ${_t("монет ≥ $100M ·")} ${esc(d.provider || "")} · ${_t("выход: TP1")} ${(d.exit || {}).tp1_r || 1.5}R + ${_t("трейлинг")} ${(d.exit || {}).trail_atr || 3}×ATR · ${_t("обновлено")} ${ago(d.updated)}</div>
-        ${d.blackout ? `<div class="blackout">⏸ ${_t("Пауза новых сигналов:")} ${esc(d.blackout.title)} ${_t("в")} ${fmtTime(d.blackout.ts)}</div>` : ""}
-      </div>`;
-    }
-    if (nb && d.blackout) h += `<div class="glass card" style="margin-top:10px">⏸ ${_t("Сейчас важная новость (")}${esc(d.blackout.title)}) — ${_t("бот временно не даёт новых сделок.")}</div>`;
-
-    // результаты
-    const P = [["d7", _t("7 дней")], ["d30", _t("30 дней")], ["all", _t("Всё время")]];
-    const idx = Math.max(0, P.findIndex(([k]) => k === state.sigPeriod));
-    const st = (d.stats || {})[state.sigPeriod] || {};
-    h += `<div class="section-title">${nb ? _t("Результаты") : _t("Статистика")}</div>`;
-    h += `<div class="segmented glass stat-seg" id="sig-period" style="--n:3;--i:${idx}"><span class="thumb-glass" aria-hidden="true"></span>${P.map(([k, l]) => `<button class="${k === state.sigPeriod ? "active" : ""}" data-p="${k}" role="radio" aria-checked="${k === state.sigPeriod}">${l}</button>`).join("")}</div>`;
-    if (!st.n) {
-      h += `<div class="glass card empty" style="padding:18px">${_t("За этот период закрытых сигналов нет")}</div>`;
-    } else if (nb) {
-      const wins = Math.round((st.n * st.winrate) / 100), dep = st.total_r * riskPct;
-      h += `<div class="nb-result glass">
-        <div class="nb-big ${rCls(dep)}">${fmtPct(dep)}</div><div class="nb-big-l">${_t("к депозиту при риске")} ${riskPct}% ${_t("на сделку")}</div>
-        <div class="nb-dots" aria-label="${wins} ${_t("из")} ${st.n} ${_t("сделок в плюсе")}">${Array.from({ length: Math.min(st.n, 40) }, (_, i) => `<i class="${i < Math.round(wins * Math.min(st.n, 40) / st.n) ? "w" : ""}"></i>`).join("")}</div>
-        <div class="nb-big-l">${st.n} ${st.n % 10 === 1 && st.n % 100 !== 11 ? _t("сделка") : st.n % 10 >= 2 && st.n % 10 <= 4 && (st.n % 100 < 10 || st.n % 100 >= 20) ? _t("сделки") : _t("сделок")}, ${_t("в плюс —")} ${wins}</div>
-      </div>`;
-    } else {
-      const be = st.by_exit || {};
-      h += `<div class="stat-grid six">
-        <div class="stat glass"><div class="v">${st.n}</div><div class="l">${_t("сделок")}</div></div>
-        <div class="stat glass"><div class="v">${Math.round(st.winrate)}%</div><div class="l">winrate</div></div>
-        <div class="stat glass"><div class="v ${rCls(st.total_r)}">${fmtR(st.total_r)}</div><div class="l">${_t("итого")}</div></div>
-        <div class="stat glass"><div class="v ${rCls(st.avg_r)}">${fmtR(st.avg_r)}</div><div class="l">${_t("ср. на сделку")}</div></div>
-        <div class="stat glass"><div class="v">${st.pf == null ? "∞" : Number(st.pf).toFixed(2)}</div><div class="l">profit factor</div></div>
-        <div class="stat glass"><div class="v">${st.max_dd != null ? "−" + Number(st.max_dd).toFixed(1) + "R" : "—"}</div><div class="l">${_t("макс. просадка")}</div></div>
-      </div>
-      <div class="pr-exits">${Object.entries(be).map(([k, v]) => `<span>${esc(EXIT[k] || k)} <b>${v}</b></span>`).join("")}</div>`;
-    }
-
-    // открытые
-    const open = d.open || [];
-    h += `<div class="section-title">${nb ? _t("Сделки сейчас") : _t("Открытые")} <small>${open.length}</small></div>`;
-    if (!open.length) h += `<div class="glass card empty" style="padding:18px">${nb ? _t("Сейчас подходящих сделок нет. Бот не торгует, когда нет понятного тренда — это нормально.") : _t("Открытых сигналов нет — бот ждёт сетап")}</div>`;
-    for (const t of open) h += nb ? nbCard(t, riskPct) : proCard(t, riskPct);
-
-    // на радаре (только в режиме пробоев)
-    const radar = d.radar || [];
-    if (!nb && (d.strategy === "breakout" || d.strategy === "both") && radar.length) {
-      h += `<div class="section-title">${_t("На радаре")} <small>${_t("готовятся пробои")}</small></div><div class="glass list">` + radar.slice(0, 8).map((r) => `<div class="closed-row radar-row" data-sym="${esc(r.symbol)}">
-          <span class="side ${esc(r.side)}">${esc(r.side)}</span>
-          <span class="n">${esc(r.symbol)} · ${_t("уровень")} ${fmtPrice(r.level)}<small>${esc(loc(r.notes))}</small></span>
-          <span class="r">${Math.round(r.score)}</span></div>`).join("") + `</div>`;
-    }
-
-    // закрытые
-    const closed = (d.closed || []).slice(0, nb ? 8 : 20);
-    if (closed.length) {
-      h += `<div class="section-title">${nb ? _t("Последние сделки") : _t("Закрытые")} <small>${closed.length}</small></div><div class="glass list">`;
-      h += closed.map((t) => nb
-        ? `<div class="closed-row nb-row"><span class="dot ${rCls(t.r_gross)}"></span>
-            <span class="n">${esc(t.symbol)} · ${sideWord(t)}<small>${EXIT_NB[t.exit_reason] || esc(t.exit_reason)}${t.closed ? " · " + fmtTime(t.closed, true) : ""}</small></span>
-            <span class="r ${rCls(t.r_gross)}">${t.r_gross > 0 ? _t("прибыль") : t.r_gross < 0 ? _t("убыток") : _t("ноль")}</span></div>`
-        : `<div class="closed-row"><span class="side ${esc(t.side)}">${esc(t.side)}</span>
-            <span class="n">${esc(t.symbol)}${t.kind === "breakout" ? _t(" · пробой") : ""}<small>${EXIT[t.exit_reason] || esc(t.exit_reason)} · ${fmtTime(t.opened, true)} → ${t.closed ? fmtTime(t.closed, true) : ""}</small></span>
-            <span class="r ${rCls(t.r_gross)}">${fmtR(t.r_gross)}</span></div>`).join("");
-      h += `</div>`;
-    }
-
-    if (!nb) {
-      // толпа на фьючерсах
-      const crowd = (d.crowd || []).filter((c) => c.z != null);
-      if (crowd.length) {
-        const hot = crowd.filter((c) => Math.abs(c.z) >= 1.5);
-        const show = (state.crowdAll ? crowd : (hot.length ? hot : crowd.slice(0, 6)));
-        h += `<div class="section-title">${_t("Толпа на фьючерсах")} <small>Binance · ${esc(crowd[0].day || "")}</small></div><div class="glass list crowd">`;
-        h += show.map((c) => {
-          const z = Math.max(-3, Math.min(3, c.z));
-          const left = z >= 0 ? 50 : 50 + (z / 3) * 50, width = Math.abs(z) / 3 * 50;
-          const cls = c.z >= 1.5 ? "long" : c.z <= -1.5 ? "short" : "";
-          return `<div class="crowd-row">
-            <span class="cs">${esc(c.symbol)}<small>${esc(_t(c.label))}</small></span>
-            <span class="zbar"><span class="mid"></span><span class="zfill ${cls}" style="left:${left}%;width:${width}%"></span></span>
-            <span class="zv ${cls}">${c.z > 0 ? "+" : ""}${Number(c.z).toFixed(1)}</span>
-            <span class="cm">L/S ${c.ls != null ? Number(c.ls).toFixed(2) : "—"}${c.top_z != null ? ` · ${_t("топ-трейдеры")} ${c.top_z > 0 ? "+" : ""}${Number(c.top_z).toFixed(1)}` : ""}${c.oi_chg != null ? ` · OI ${_t("3д")} ${c.oi_chg > 0 ? "+" : ""}${Number(c.oi_chg).toFixed(1)}%` : ""}</span>
-          </div>`;
-        }).join("");
-        h += `</div><button class="chip glass crowd-toggle">${state.crowdAll ? _t("Показать только перекосы") : `${_t("Все монеты (")}${crowd.length})`}</button>
-          <p class="hint">z — ${_t("перекос лонгов/шортов у розницы против её обычного уровня за 2 недели. Бот не входит туда, где толпа перегружена (|z| ≥ 2).")}</p>`;
-      }
-      // проверка стратегии
-      const bt = d.backtest;
-      if (bt && (bt.rows || []).length) {
-        h += `<div class="section-title">${_t("Проверка на истории")} <small>${bt.days} ${_t("дн. ·")} ${bt.coins} ${_t("монет")}</small></div><div class="glass list">`;
-        h += bt.rows.map((r) => `<div class="exp-row"><span>${r.ok ? "✅" : "▫️"}</span><span>${esc(r.name)}</span>
-            <span class="f">${(r.folds || []).map((x) => fmtR(x)).join(" · ")}</span></div>`).join("");
-        h += `</div><p class="hint">${_t("Средний R на сделку в каждом из 3 периодов, после комиссий. ✅ — в плюсе во всех.")}</p>`;
-      }
-      h += `<p class="hint">R — ${_t("результат в единицах риска: −1R = стоп, +1.5R = TP1. Нажми на сигнал — откроется график. Не финансовый совет.")}</p>`;
-    } else {
-      h += `<button class="chip glass go-pro">${_t("Больше данных — режим «Продвинутый» →")}</button><p class="hint">${_t("Нажми на сделку — откроется график. Это не финансовый совет.")}</p>`;
-    }
-    box.innerHTML = h;
-
-    const ct = box.querySelector(".crowd-toggle");
-    if (ct) ct.addEventListener("click", () => { state.crowdAll = !state.crowdAll; haptic(); renderSignals(); });
-    const gp = box.querySelector(".go-pro");
-    if (gp) gp.addEventListener("click", () => setMode("pro"));
-    box.querySelectorAll("#sig-period button").forEach((b) => b.addEventListener("click", () => { state.sigPeriod = b.dataset.p; haptic(); renderSignals(); }));
-    box.querySelectorAll(".sig-card[data-sym], .radar-row[data-sym]").forEach((c) => c.addEventListener("click", () => {
-      // в режиме «Продвинутый» сделка открывается в McQ Pro Chart (с линиями входа, стопа и целей)
-      if (state.mode === "pro" && window.ProChart && c.classList.contains("sig-card")) { window.ProChart.open({ symbol: c.dataset.sym }); return; }
-      state.asset = c.dataset.sym; state.interval = "60"; switchTab("charts");
-    }));
-  }
-
 
   // ---------------------------------------------------------------- новости
   const ICON_IMPACT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg>';
@@ -839,6 +628,7 @@
     const box = $("#liq-box");
     if (!box) return;
     const lm = state.sig && state.sig.liqmap;
+    if (!lm) { box.innerHTML = ""; return; }   // данных карты ликвидаций нет — блок не показываем
     const m = lm && lm.symbols ? lm.symbols[state.asset] : null;
     const avail = lm && lm.symbols ? Object.keys(lm.symbols) : [];
     let h = `<div class="section-title">${_t("Карта ликвидаций")} <small>${_t("оценка")}</small></div>`;
@@ -927,20 +717,47 @@
       style: "1",
       locale: I18.tv,
       enable_publishing: false,
-      hide_side_toolbar: true,
+      hide_side_toolbar: false,           // базовые инструменты рисования TradingView слева
+      hide_legend: true,                  // без плашки с названием актива поверх графика
       hide_top_toolbar: false,
       allow_symbol_change: false,
       withdateranges: false,
       save_image: false,
       studies: state.rsi ? ["RSI@tv-basicstudies"] : [],
-      backgroundColor: "rgba(0,0,0,0)",
-      gridColor: dark ? "rgba(255,255,255,0.06)" : "rgba(20,28,48,0.06)",
-      toolbar_bg: "rgba(0,0,0,0)",
+      backgroundColor: "#0E0E10",
+      gridColor: "rgba(255,255,255,0.05)",
     });
   }
 
+  // график на весь экран: системный полноэкранный режим, где он есть; иначе — на всё окно приложения
+  function chartFS(force) {
+    const box = $("#chart-box");
+    if (!box) return;
+    const on = force != null ? force : !box.classList.contains("fs");
+    box.classList.toggle("fs", on);
+    document.documentElement.classList.toggle("chart-fs", on);
+    const btn = $("#chart-fs");
+    if (btn) { btn.setAttribute("aria-label", on ? _t("Свернуть") : _t("На весь экран")); btn.innerHTML = on
+      ? '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; }
+    try {
+      const req = box.requestFullscreen || box.webkitRequestFullscreen, fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (on && !fsEl && req && !inTGApp()) { const r = req.call(box); if (r && r.catch) r.catch(() => { /* остаётся режим на всё окно */ }); }
+      else if (!on && fsEl) { const ex = document.exitFullscreen || document.webkitExitFullscreen; const r = ex && ex.call(document); if (r && r.catch) r.catch(() => { /* noop */ }); }
+    } catch (e) { /* noop */ }
+    haptic();
+  }
+  function inTGApp() { return !!(tg && tg.initData); }
+  ["fullscreenchange", "webkitfullscreenchange"].forEach((ev) => document.addEventListener(ev, () => {
+    const box = $("#chart-box");
+    if (box && box.classList.contains("fs") && !(document.fullscreenElement || document.webkitFullscreenElement)) chartFS(false);
+  }));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.documentElement.classList.contains("chart-fs")) chartFS(false); });
+  { const b = $("#chart-fs"); if (b) b.addEventListener("click", () => chartFS()); }
+
   // ---------------------------------------------------------------- навигация
   function switchTab(name) {
+    if (document.documentElement.classList.contains("chart-fs")) chartFS(false);
     state.tab = name;
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${name}`));
     const btns = [...document.querySelectorAll(".nav-btn")];
@@ -955,7 +772,10 @@
     haptic();
   }
 
-  document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+  document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.tab) switchTab(b.dataset.tab);
+    else if (b.dataset.open === "journal" && window.Journal) { haptic(); window.Journal.open(); }
+  }));
 
   // ---------------------------------------------------------------- язык
   const langBtn = $("#lang-btn"), langMenu = $("#lang-menu");
@@ -983,7 +803,7 @@
   }));
   document.addEventListener("click", (e) => { if (!langMenu.hidden && !langMenu.contains(e.target)) closeLang(); });
 
-  const MODE_CAP = { simple: _t("Главное простыми словами: куда идёт рынок и готовые сделки"), pro: _t("Все инструменты: RSI, толпа, ликвидации, статистика стратегии") };
+  const MODE_CAP = { simple: _t("Главное простыми словами: куда идёт рынок и почему"), pro: _t("Все инструменты: RSI, страх и жадность, карта ликвидаций") };
   function applyMode() {
     document.documentElement.dataset.mode = state.mode;
     const seg = $("#mode");
@@ -1011,11 +831,10 @@
     applyMode();
     haptic();
     if (state.data) { renderOverview(); renderNews(); renderCalendar(); }
-    renderSignals();
     if (state.tab === "charts") renderLiq();
     if (!quiet) toast(m === "pro"
-      ? _t("<b>Продвинутый</b> · добавлены RSI, толпа на фьючерсах, карта ликвидаций, сила сигнала и статистика стратегии")
-      : _t("<b>Новичок</b> · только главное, сделки пошагово и подсказки"));
+      ? _t("<b>Продвинутый</b> · добавлены RSI, страх и жадность и карта ликвидаций")
+      : _t("<b>Новичок</b> · только главное и подсказки"));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   $("#mode").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { if (state.mode !== b.dataset.m) setMode(b.dataset.m); }));
@@ -1143,7 +962,7 @@
       // в Telegram: предложить поставить приложение на телефон (с пушами)
       if (!LS.get("amq-promo-tg")) {
         h = `<div class="promo glass"><span class="promo-ic"><img src="icons/icon-192.png" alt=""></span>
-          <div class="promo-t"><b>${_t("McQCryptoNews на телефоне")}</b><span>${_t("Отдельное приложение с пуш-уведомлениями о сигналах и важных событиях.")}</span></div>
+          <div class="promo-t"><b>${_t("McQCryptoNews на телефоне")}</b><span>${_t("Отдельное приложение с пуш-уведомлениями о важных событиях.")}</span></div>
           <button class="promo-btn" data-act="open">${_t("Установить")}</button><button class="promo-x" data-act="hide-tg" aria-label="×">×</button></div>`;
       }
     } else if (!standalone && !LS.get("amq-promo-install")) {
@@ -1155,7 +974,7 @@
     }
     if (!inTG && (pushState === "off") && !LS.get("amq-promo-push")) {
       h += `<div class="promo glass"><span class="promo-ic bell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
-        <div class="promo-t"><b>${_t("Уведомления")}</b><span>${_t("Новые сигналы, тейк/стоп, важные события и утренний план — сразу на телефон.")}</span></div>
+        <div class="promo-t"><b>${_t("Уведомления")}</b><span>${_t("Важные события и утренний план — сразу на телефон.")}</span></div>
         <button class="promo-btn" data-act="push">${_t("Включить")}</button><button class="promo-x" data-act="hide-push" aria-label="×">×</button></div>`;
     }
     box.innerHTML = h;
@@ -1218,9 +1037,9 @@
   // переход по ссылке из пуша: …/#signals, #news, #calendar, #charts
   function routeHash() {
     const h = (location.hash || "").replace("#", "");
-    if (["overview", "signals", "news", "charts", "calendar"].includes(h)) switchTab(h);
+    if (["overview", "news", "charts", "calendar"].includes(h)) switchTab(h);
     if (h === "prochart" && window.ProChart) { switchTab("charts"); window.ProChart.open(); }
-    if (h === "journal" && window.Journal) { switchTab("signals"); window.Journal.open(); }
+    if ((h === "journal" || h === "signals") && window.Journal) window.Journal.open();
   }
   // McQ Pro Chart: кнопка во вкладке «Графики»
   const pcBtn = $("#pc-open");
@@ -1228,9 +1047,7 @@
     const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset);
     if (window.ProChart) window.ProChart.open({ symbol: crypto ? state.asset : "BTC" });
   });
-  const jrBtn = $("#jr-open");
-  if (jrBtn) jrBtn.addEventListener("click", () => { haptic(); if (window.Journal) window.Journal.open(); });
-  window.McQ = { sig: () => state.sig, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data };
+  window.McQ = { sig: () => null, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data };
   window.addEventListener("hashchange", routeHash);
 
   mountDominance();

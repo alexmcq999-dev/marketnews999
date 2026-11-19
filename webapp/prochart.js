@@ -338,7 +338,7 @@
   // ================================================================ состояние
   const S = {
     open: false, sym: "BTC", tf: "1h", sec: 3600, cs: [], bySrc: {}, ind: null, mkt: null, oi: null, anchorT: null, anchorMode: false,
-    show: { vwap: true, bands: true, ticks: true, vp: true, cvd: true, oi: true }, hover: null, aiLines: [], sigLines: [], signal: null,
+    show: { vwap: true, bands: true, ticks: true, vp: true, cvd: true, oi: true }, hover: null, aiLines: [], posLines: [], pos: null, posLive: null, pick: null, ws: null,
     timer: null, loadId: 0, chat: [],
   };
   try { Object.assign(S.show, JSON.parse(localStorage.getItem("amq-pc-show") || "{}")); const tf = localStorage.getItem("amq-pc-tf"); if (tf && TFS.some((x) => x[0] === tf)) S.tf = tf; } catch (e) { /* noop */ }
@@ -365,6 +365,7 @@
         <button class="pc-x" data-act="close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
         <div class="pc-title"><b>McQ Pro Chart</b><span class="pc-pro">PRO</span></div>
         <div class="pc-src" id="pc-src"></div>
+        <button class="pc-x pc-fs-btn" data-act="fs" aria-label="${esc(_t("На весь экран"))}" title="${esc(_t("На весь экран"))}"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <div class="pc-assets" id="pc-assets" role="tablist"></div>
       <div class="pc-head">
@@ -373,7 +374,9 @@
       </div>
       <div class="pc-stats" id="pc-stats"></div>
       <div class="pc-tools" id="pc-tools"></div>
+      <form class="pc-pos" id="pc-pos" hidden autocomplete="off"></form>
       <div class="pc-chart-wrap">
+        <div class="pc-posbadge" id="pc-posbadge" hidden></div>
         <div class="pc-chart" id="pc-chart"></div>
         <div class="pc-legend" id="pc-legend"></div>
         <div class="pc-msg" id="pc-msg"></div>
@@ -395,6 +398,7 @@
       if (!a) return;
       const act = a.dataset.act;
       if (act === "close") close();
+      else if (act === "fs") toggleFS();
       else if (act === "ai") openAI();
       else if (act === "ai-close") closeAI();
     });
@@ -409,7 +413,7 @@
     $("#pc-assets").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
       let s = b.dataset.sym;
       if (s === "+") { addInput(b); return; }
-      if (s !== S.sym) { S.sym = s; S.anchorT = null; S.signal = findSignal(s); clearAI(); renderControls(); load(); }
+      if (s !== S.sym) { S.sym = s; S.anchorT = null; loadPos(); clearAI(); renderControls(); load(); }
     }));
     const i = TFS.findIndex((x) => x[0] === S.tf);
     $("#pc-tf").style.setProperty("--n", TFS.length);
@@ -425,9 +429,11 @@
       ["vwap", "VWAP"], ["bands", "±σ"], ["ticks", _t("VWAP свечи")], ["vp", _t("Профиль")], ["cvd", "CVD"], ["oi", "OI"],
     ];
     $("#pc-tools").innerHTML = tools.map(([k, l]) => `<button class="${S.show[k] ? "on" : ""}" data-t="${k}">${esc(l)}</button>`).join("")
+      + `<button class="${S.pos ? "on gold" : ""}" data-t="pos">${esc(_t("Позиция"))}${S.pos ? ` · ${S.pos.side === "long" ? "L" : "S"}` : ""}</button>`
       + `<button class="${S.anchorMode || S.anchorT != null ? "on gold" : ""}" data-t="anchor" title="${esc(_t("Якорный VWAP: нажми, затем коснись свечи"))}">⚓ AVWAP</button>`;
     $("#pc-tools").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.t;
+      if (k === "pos") { togglePosForm(); return; }
       if (k === "anchor") {
         if (S.anchorT != null || S.anchorMode) { S.anchorT = null; S.anchorMode = false; draw(); }
         else { S.anchorMode = true; msg(_t("Коснись свечи, от которой считать VWAP"), 2500); }
@@ -448,7 +454,7 @@
     inp.focus();
     const go = () => {
       const s = inp.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (s && s !== S.sym) { S.sym = s; S.anchorT = null; S.signal = findSignal(s); clearAI(); load(); }
+      if (s && s !== S.sym) { S.sym = s; S.anchorT = null; loadPos(); clearAI(); load(); }
       renderControls();
     };
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } if (e.key === "Escape") { inp.value = ""; inp.blur(); } });
@@ -505,6 +511,15 @@
       legend(); exPanel();
     });
     chart.subscribeClick((p) => {
+      if (S.pick && p && p.point) {
+        const price = ser.candle.coordinateToPrice(p.point.y);
+        if (price != null && isFinite(price)) {
+          const inp = $(`#pc-pos [name="${S.pick}"]`);
+          if (inp) inp.value = String(+Number(price).toPrecision(6));
+          S.pick = null; posFormPicking(); msg(_t("Цена взята с графика"), 1200);
+        }
+        return;
+      }
       if (!S.anchorMode || !p || p.time == null) return;
       S.anchorT = p.time; S.anchorMode = false; renderControls(); draw();
       msg(_t("Якорный VWAP построен"), 1500);
@@ -567,7 +582,7 @@
     mk.sort((a, b) => a.time - b.time);
     markersApi.setMarkers(mk);
     overlay.cs = cs; overlay.showTicks = S.show.ticks; overlay.showVP = S.show.vp;
-    drawSignal();
+    drawPosition();
     drawAILevels();
     if (!keepRange) fitView();   // новая монета или таймфрейм: автомасштаб (после ручного сдвига шкала оставалась на старой цене)
     recalcProfile();
@@ -593,20 +608,122 @@
   }
 
   // ================================================================ сигнал McQ и уровни ИИ на графике
-  function findSignal(sym) {
-    const sig = window.McQ && window.McQ.sig && window.McQ.sig();
-    return sig && (sig.open || []).find((t) => String(t.symbol).toUpperCase() === sym) || null;
+
+  // ================================================================ моя позиция: ТВХ, TP, SL — на графике и с результатом в реальном времени
+  // Хранится только на этом устройстве (localStorage), по монете. Цена в реальном времени — марк-цена Binance Futures
+  // (WebSocket, раз в секунду); если поток недоступен — последняя свеча графика.
+  const POS_KEY = "amq-pc-pos";
+  const posAll = () => { try { return JSON.parse(localStorage.getItem(POS_KEY) || "{}") || {}; } catch (e) { return {}; } };
+  function savePosAll(o) { try { localStorage.setItem(POS_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
+  function loadPos() { S.pos = posAll()[S.sym] || null; S.posLive = null; S.pick = null; stopPosStream(); const f = $("#pc-pos"); if (f && !f.hidden) renderPosForm(); }
+  const num = (v) => { const x = parseFloat(String(v == null ? "" : v).replace(/\s/g, "").replace(",", ".")); return isFinite(x) && x > 0 ? x : null; };
+  function togglePosForm() { const f = $("#pc-pos"); if (f.hidden) { renderPosForm(); f.hidden = false; } else { f.hidden = true; S.pick = null; } }
+  function renderPosForm() {
+    const f = $("#pc-pos"), p = S.pos || {}, side = (f.dataset.side) || p.side || "long";
+    f.dataset.side = side;
+    const fld = (name, label, val, pick) => `<label class="pp-f"><span>${esc(label)}</span><span class="pp-in"><input name="${name}" inputmode="decimal" value="${val != null ? esc(val) : ""}" placeholder="—">${pick ? `<button type="button" data-pick="${name}" aria-label="${esc(_t("Указать на графике"))}" title="${esc(_t("Указать на графике"))}"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>` : ""}</span></label>`;
+    f.innerHTML = `<div class="pp-row">
+        <div class="pp-side" role="radiogroup" aria-label="${esc(_t("Сторона"))}"><button type="button" data-side="long" class="${side === "long" ? "on long" : ""}" role="radio" aria-checked="${side === "long"}">Long</button><button type="button" data-side="short" class="${side === "short" ? "on short" : ""}" role="radio" aria-checked="${side === "short"}">Short</button></div>
+        ${fld("entry", _t("ТВХ"), p.entry, true)}${fld("tp", "TP", p.tp, true)}${fld("sl", "SL", p.sl, true)}${fld("size", _t("Объём, $"), p.size)}${fld("lev", _t("Плечо"), p.lev)}
+      </div>
+      <div class="pp-row pp-act"><button type="submit" class="pp-save">${esc(_t(S.pos ? "Обновить" : "Закрепить позицию"))}</button>${S.pos ? `<button type="button" class="pp-del" data-pp="del">${esc(_t("Убрать позицию"))}</button>` : ""}<small>${esc(_t("Нажми ◎ и коснись графика, чтобы взять цену. Позиция хранится только на этом устройстве."))}</small></div>
+      <p class="pp-err" id="pp-err"></p>`;
+    if (!S.pos && !p.entry) { const c = S.cs.length ? S.cs[S.cs.length - 1].c : null; if (c) f.querySelector('[name="entry"]').value = String(+Number(c).toPrecision(6)); }
+    if (!f.dataset.bound) {
+      f.dataset.bound = "1";
+      f.addEventListener("click", (e) => {
+        const sd = e.target.closest("[data-side]");
+        if (sd) { f.dataset.side = sd.dataset.side; f.querySelectorAll("[data-side]").forEach((b) => { const on = b.dataset.side === sd.dataset.side; b.className = on ? `on ${b.dataset.side}` : ""; b.setAttribute("aria-checked", on); }); return; }
+        const pk = e.target.closest("[data-pick]");
+        if (pk) { S.pick = S.pick === pk.dataset.pick ? null : pk.dataset.pick; posFormPicking(); if (S.pick) msg(_t("Коснись графика на нужной цене"), 2200); return; }
+        if (e.target.closest('[data-pp="del"]')) { const all = posAll(); delete all[S.sym]; savePosAll(all); S.pos = null; S.posLive = null; stopPosStream(); drawPosition(); renderControls(); f.hidden = true; return; }
+      });
+      f.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const g = (n) => num(f.querySelector(`[name="${n}"]`).value);
+        const side = f.dataset.side || "long", entry = g("entry"), tp = g("tp"), sl = g("sl"), size = g("size"), lev = g("lev");
+        const err = $("#pp-err");
+        if (!entry) { err.textContent = _t("Укажи цену входа (ТВХ)."); return; }
+        const dir = side === "long" ? 1 : -1;
+        if (tp && (tp - entry) * dir <= 0) { err.textContent = side === "long" ? _t("Для лонга TP должен быть выше входа.") : _t("Для шорта TP должен быть ниже входа."); return; }
+        if (sl && (entry - sl) * dir <= 0) { err.textContent = side === "long" ? _t("Для лонга SL должен быть ниже входа.") : _t("Для шорта SL должен быть выше входа."); return; }
+        S.pos = { side, entry, tp, sl, size, lev: lev || null, ts: Date.now(), hit: null };
+        const all = posAll(); all[S.sym] = S.pos; savePosAll(all);
+        S.pick = null; f.hidden = true;
+        drawPosition(); renderControls();
+        try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("success"); } catch (er) { /* noop */ }
+        msg(_t("Позиция закреплена"), 1400);
+      });
+    }
   }
-  function drawSignal() {
-    S.sigLines.forEach((l) => ser.candle.removePriceLine(l)); S.sigLines = [];
-    const t = S.signal;
-    if (!t) return;
-    const add = (price, title, color, style) => { if (price) S.sigLines.push(ser.candle.createPriceLine({ price: +price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title })); };
-    add(t.entry, `McQ ${t.side === "LONG" ? "LONG" : "SHORT"}`, "#ffffff", 0);
-    add(t.sl, "SL", C.down, 2);
-    add(t.tp1, "TP1", C.up, 2);
-    add(t.tp2, "TP2", C.up, 1);
+  function posFormPicking() { const f = $("#pc-pos"); if (f) f.querySelectorAll("[data-pick]").forEach((b) => b.classList.toggle("on", b.dataset.pick === S.pick)); const w = $(".pc-chart-wrap"); if (w) w.classList.toggle("picking", !!S.pick); }
+  function drawPosition() {
+    if (!ser.candle) return;
+    (S.posLines || []).forEach((l) => { try { ser.candle.removePriceLine(l); } catch (e) { /* noop */ } });
+    S.posLines = [];
+    const p = S.pos, badge = $("#pc-posbadge");
+    if (!p) { if (badge) badge.hidden = true; stopPosStream(); return; }
+    const L = (price, title, color, style, w) => S.posLines.push(ser.candle.createPriceLine({ price, color, lineWidth: w || 1, lineStyle: style, axisLabelVisible: true, title }));
+    L(p.entry, `${_t("ТВХ")} ${p.side === "long" ? "LONG" : "SHORT"}`, "#F2F0EC", 0, 1);
+    if (p.tp) L(p.tp, "TP", C.up, 2);
+    if (p.sl) L(p.sl, "SL", C.down, 2);
+    startPosStream();
+    posTick(S.posLive ? S.posLive.price : S.cs.length ? S.cs[S.cs.length - 1].c : null);
   }
+  function posTick(price) {
+    const p = S.pos, badge = $("#pc-posbadge");
+    if (!p || !badge || price == null || !isFinite(price)) return;
+    const dir = p.side === "long" ? 1 : -1, pct = ((price - p.entry) / p.entry) * 100 * dir, lev = p.lev || 1;
+    const usd = p.size ? (p.size / p.entry) * (price - p.entry) * dir : null;
+    const toTp = p.tp ? ((p.tp - price) / price) * 100 * dir : null, toSl = p.sl ? ((price - p.sl) / price) * 100 * dir : null;
+    const rr = p.tp && p.sl ? Math.abs(p.tp - p.entry) / Math.abs(p.entry - p.sl) : null;
+    S.posLive = { price, pct, usd };
+    // TP / SL достигнут — один раз сообщаем и запоминаем
+    let hit = p.hit;
+    if (!hit && p.tp && (price - p.tp) * dir >= 0) hit = "tp";
+    if (!hit && p.sl && (p.sl - price) * dir >= 0) hit = "sl";
+    if (hit && hit !== p.hit) {
+      p.hit = hit; const all = posAll(); all[S.sym] = p; savePosAll(all);
+      msg(hit === "tp" ? _t("Цена дошла до TP") : _t("Цена дошла до SL"), 3000);
+      try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(hit === "tp" ? "success" : "error"); } catch (e) { /* noop */ }
+    }
+    const k = pct > 0 ? "up" : pct < 0 ? "down" : "";
+    const sgn = (v, d) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}`;
+    badge.hidden = false;
+    badge.innerHTML = `<div class="pb-top"><span class="pb-side ${p.side}">${p.side === "long" ? "LONG" : "SHORT"}${p.lev ? ` ×${p.lev}` : ""}</span><span class="pb-k">${esc(_t("ТВХ"))} <b>${fmtP(p.entry)}</b></span>${hit ? `<span class="pb-hit ${hit}">${hit === "tp" ? _t("TP достигнут") : _t("SL достигнут")}</span>` : ""}</div>
+      <div class="pb-pnl ${k}"><b>${usd != null ? `${sgn(usd, Math.abs(usd) >= 100 ? 0 : 2)} $` : `${sgn(pct, 2)}%`}</b><span>${usd != null ? `${sgn(pct, 2)}%` : ""}${lev > 1 ? ` · ROE ${sgn(pct * lev, 1)}%` : ""}</span></div>
+      <div class="pb-row">${toTp != null ? `<span>${esc(_t("до TP"))} <b class="up">${sgn(toTp, 2)}%</b></span>` : ""}${toSl != null ? `<span>${esc(_t("до SL"))} <b class="down">${sgn(toSl, 2)}%</b></span>` : ""}${rr ? `<span>R:R <b>1 : ${rr.toFixed(1)}</b></span>` : ""}</div>
+      <div class="pb-src">${esc(S.ws && S.ws.ok ? _t("марк-цена Binance · обновляется каждую секунду") : _t("цена графика"))} · ${fmtP(price)}</div>`;
+  }
+  function startPosStream() {
+    if (!S.pos || !S.open || S.ws || typeof WebSocket === "undefined") return;
+    const sym = S.sym;
+    try {
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${sym.toLowerCase()}usdt@markPrice@1s`);
+      S.ws = ws;
+      ws.onmessage = (ev) => { try { const d = JSON.parse(ev.data); const p = +d.p; if (S.ws === ws && sym === S.sym && isFinite(p)) { ws.ok = true; posTick(p); } } catch (e) { /* noop */ } };
+      ws.onclose = () => { if (S.ws === ws) { S.ws = null; if (S.open && S.pos && sym === S.sym) setTimeout(startPosStream, 5000); } };
+      ws.onerror = () => { try { ws.close(); } catch (e) { /* noop */ } };
+    } catch (e) { S.ws = null; }
+  }
+  function stopPosStream() { const ws = S.ws; S.ws = null; if (ws) { try { ws.onclose = null; ws.close(); } catch (e) { /* noop */ } } }
+
+  // ================================================================ на весь экран
+  function toggleFS(force) {
+    const el = $("#pc");
+    if (!el) return;
+    const on = force != null ? force : !el.classList.contains("fs");
+    el.classList.toggle("fs", on);
+    document.documentElement.classList.toggle("pc-fs", on);
+    try {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen, fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (on && !fsEl && req) { const r = req.call(el); if (r && r.catch) r.catch(() => { /* остаётся режим на всё окно */ }); }
+      else if (!on && fsEl) { const ex = document.exitFullscreen || document.webkitExitFullscreen; const r = ex && ex.call(document); if (r && r.catch) r.catch(() => { /* noop */ }); }
+    } catch (e) { /* noop */ }
+    try { if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) { if (on) tg.requestFullscreen(); else tg.exitFullscreen(); } } catch (e) { /* noop */ }
+  }
+  ["fullscreenchange", "webkitfullscreenchange"].forEach((ev) => document.addEventListener(ev, () => { const el = $("#pc"); if (el && !(document.fullscreenElement || document.webkitFullscreenElement) && el.classList.contains("fs")) { el.classList.remove("fs"); document.documentElement.classList.remove("pc-fs"); } }));
+
   const KIND_COLOR = { support: C.up, resistance: C.down, entry: "#ffffff", stop: C.down, target: C.up, liquidity: C.gold };
   function drawAILevels() {
     (S.aiLines || []).forEach((l) => { try { ser.candle.removePriceLine(l.line); } catch (e) { /* noop */ } });
@@ -710,6 +827,7 @@
       ser.cvd.update({ time: k.t, value: S.ind.cvd[S.ind.cvd.length - 1].v });
       overlay.cs = S.cs; overlay.update();
       legend(); exPanel(); stats();
+      if (!S.ws) posTick(k.c);
     }
   }
   function startLive() { stopLive(); S.timer = setInterval(refreshLast, S.sec <= 900 ? 8000 : 15000); }
@@ -750,7 +868,7 @@
       volume_spikes_last20: I.spikes.filter((s) => s.i >= n - 20).map((s) => ({ bars_ago: n - 1 - s.i, x_avg: +s.x.toFixed(1), delta: cs[s.i].delta >= 0 ? "buy" : "sell", close: r(cs[s.i].c) })),
       candles: cs.slice(-40).map((k) => [k.t, r(k.o), r(k.h), r(k.l), r(k.c), r(k.vwap), Math.round(k.Q), Math.round(k.delta), Math.round((k.spot / k.Q) * 100)]),
       candles_format: "[unix, open, high, low, close, candle_vwap, volume_usd, est_delta_usd, spot_pct]",
-      mcq_signal: S.signal ? { side: S.signal.side, entry: S.signal.entry, stop: S.signal.sl, tp1: S.signal.tp1, tp2: S.signal.tp2, status: S.signal.status } : null,
+      user_position: S.pos ? { side: S.pos.side, entry: S.pos.entry, take_profit: S.pos.tp || null, stop_loss: S.pos.sl || null, size_usd: S.pos.size || null, leverage: S.pos.lev || null, pnl_pct: S.posLive ? +S.posLive.pct.toFixed(2) : null } : null,
       exchanges: Object.keys(S.bySrc).map((id) => `${SRC[id].ex} ${SRC[id].kind}`),
     };
   }
@@ -920,8 +1038,8 @@
     opts = opts || {};
     const el = shell();
     if (opts.symbol) S.sym = String(opts.symbol).toUpperCase().replace(/USDT$/, "");
-    S.signal = findSignal(S.sym);
     S.open = true;
+    loadPos();
     el.hidden = false;
     document.documentElement.classList.add("pc-open");
     requestAnimationFrame(() => el.classList.add("show"));
@@ -942,6 +1060,8 @@
     if (!el) return;
     S.open = false;
     stopLive();
+    stopPosStream();
+    if (el.classList.contains("fs")) toggleFS(false);
     el.classList.remove("show");
     document.documentElement.classList.remove("pc-open");
     setTimeout(() => { el.hidden = true; }, 260);

@@ -9,14 +9,14 @@
   const LS = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* noop */ } } };
   const KEY = "amq-tour-v1";
   const tab = (name) => { const b = document.querySelector(`.nav-btn[data-tab="${name}"]`); if (b && !b.classList.contains("active")) b.click(); };
+  const pick = (sel) => { const all = [...document.querySelectorAll(sel)]; return all.find((e) => visible(e)) || all[0] || null; };
   const visible = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
 
   const STEPS = [
-    { center: true, icon: "👋", title: "Добро пожаловать в McQCryptoNews", text: "За минуту покажем, где что находится: рынок, сигналы, новости, графики и торговый журнал." },
+    { center: true, icon: "👋", title: "Добро пожаловать в McQCryptoNews", text: "За минуту покажем, где что находится: рынок, новости, графики и торговый журнал." },
     { el: "#mode", before: () => tab("overview"), title: "Новичок или Продвинутый", text: "Переключай, сколько данных показывать. «Новичок» — только главное и подсказки, «Продвинутый» — RSI, ликвидации, толпа на фьючерсах и статистика." },
     { el: '.nav-btn[data-tab="overview"]', before: () => tab("overview"), title: "Обзор", text: "Главный экран: биткоин, настроение рынка, доминация BTC и торговые сессии мира в реальном времени." },
-    { el: '.nav-btn[data-tab="signals"]', before: () => tab("signals"), title: "Сигналы", text: "Сделки бота McQ: вход, стоп и цели, текущий результат и честная статистика стратегии." },
-    { el: "#jr-open", before: () => tab("signals"), title: "Торговый журнал", text: "Подключи свою биржу read-only ключом — журнал сам соберёт сделки, покажет ошибки и календарь результатов. Ключи остаются на телефоне." },
+    { el: '.nav-btn[data-open="journal"], .nav-tool[data-open="jr-open"]', before: () => tab("overview"), title: "Торговый журнал", text: "Подключи свою биржу read-only ключом — журнал сам соберёт сделки, покажет ошибки и календарь результатов. Ключи остаются на телефоне." },
     { el: '.nav-btn[data-tab="news"]', before: () => tab("news"), title: "Новости", text: "Главные события для крипты и рынков с пересказом и влиянием на цену. Обновляются дважды в день." },
     { el: "#pc-open", before: () => tab("charts"), title: "Pro Chart", text: "Свечи и объёмы сразу с 9 крупнейших бирж, VWAP в каждой свече и ИИ-ассистент, который разбирает график." },
     { el: '.nav-btn[data-tab="calendar"]', before: () => tab("calendar"), title: "Календарь", text: "Важные макро-события недели: ставки, инфляция, отчёты — и как на них реагировал рынок." },
@@ -50,7 +50,7 @@
   function place() {
     const st = S.steps[S.i];
     const hole = S.el.querySelector(".tour-hole"), card = S.el.querySelector(".tour-card");
-    const target = st.el ? document.querySelector(st.el) : null;
+    const target = st.el ? pick(st.el) : null;
     const vw = innerWidth, vh = innerHeight, pad = 8;
     if (!target || st.center) {
       hole.style.cssText = `left:${vw / 2}px;top:${vh / 2}px;width:0;height:0;`;
@@ -80,7 +80,7 @@
     S.i = i;
     const st = S.steps[i];
     if (st.before) { try { st.before(); } catch (e) { /* noop */ } }
-    const target = st.el ? document.querySelector(st.el) : null;
+    const target = st.el ? pick(st.el) : null;
     if (target) {
       const r = target.getBoundingClientRect();
       if (r.top < 70 || r.bottom > innerHeight - 90) { target.scrollIntoView({ block: "center", behavior: "instant" }); }
@@ -111,7 +111,7 @@
     // шаги только для элементов, которые сейчас есть на экране (например, профиля нет без входа)
     S.steps = STEPS.filter((s) => {
       if (s.center || !s.el) return true;
-      const el = document.querySelector(s.el);
+      const el = pick(s.el);
       if (!el) return false;
       if (s.el === "#profile-btn") return !el.hidden;
       return true;

@@ -553,7 +553,7 @@
       const exit = px * (1 + move * dir), gross = (exit - px) * qty * dir, fee = notional * 0.0009;
       out.push({ id: `demo:${i}`, ex: ["binance", "bybit", "okx"][i % 3], sym, side, qty, entry: px, exit, notional, gross, fee, funding: -notional * 0.0001 * (dur / 28800000),
         pnl: gross - fee, openT, closeT: openT + (win ? dur : dur * 1.8), open: false, demo: true,
-        lev: [5, 10, 10, 20, 25, 50][Math.floor(r() * 6)], dtags: [["Сигнал McQ"], ["Пробой"], ["Тренд", "По плану"], ["FOMO"], [], ["Отбой"], ["Сигнал McQ", "По плану"], []][Math.floor(r() * 8)] });
+        lev: [5, 10, 10, 20, 25, 50][Math.floor(r() * 6)], dtags: [["По плану"], ["Пробой"], ["Тренд", "По плану"], ["FOMO"], [], ["Отбой"], ["Пробой", "По плану"], []][Math.floor(r() * 8)] });
     }
     // несколько «отыгрышей»: быстрый вход после убытка, чаще всего неудачный
     out.filter((t, i) => t.gross < 0 && i % 3 === 0).forEach((l, j) => {
@@ -638,7 +638,7 @@
   // разделы обзора: [id, название, пояснение]
   const GROUPS = [
     ["sum", "Итоги", "общий результат за период"],
-    ["mkt", "Рынок и сигналы McQ", "что происходит сейчас и как работают сигналы"],
+    ["mkt", "Рынок", "что происходит сейчас"],
     ["qual", "Качество сделок", "как ты входишь и выходишь"],
     ["risk", "Риск и дисциплина", "сколько ставишь и как ведёшь себя после убытков"],
     ["time", "Время", "когда ты зарабатываешь и когда теряешь"],
@@ -647,7 +647,7 @@
   ];
   const WIDGETS = [
     ["pnl", "Кривая прибыли", "sum"], ["month", "Карта месяца", "sum"], ["key", "Ключевые метрики", "sum"], ["insights", "Выводы и ИИ-разбор", "sum"],
-    ["market", "Рынок сегодня", "mkt"], ["mcq", "Сигналы McQ и свои сделки", "mkt"],
+    ["market", "Рынок сегодня", "mkt"],
     ["recent", "Последние сделки", "qual"], ["exit", "Качество выхода", "qual"], ["after", "Если бы держал ещё 30 минут", "qual"], ["move", "Средний ход цены", "qual"], ["dist", "Распределение результатов", "qual"],
     ["risk", "Риск на сделку", "risk"], ["streak", "Серии", "risk"], ["revenge", "Сделки после убытка", "risk"], ["perday", "Сделок в день", "risk"],
     ["daily", "Результат по дням", "time"], ["dow", "По дням недели", "time"], ["hour", "По часам", "time"], ["session", "По торговым сессиям", "time"], ["hold", "Время в сделке", "time"],
@@ -810,13 +810,6 @@
       }
       if (!h) h = emptyW("Сегодня важных событий нет");
       return wg("market", h, { per: false, link: ["tab", "calendar", "Календарь"] });
-    },
-    mcq(s) {
-      const isM = (t) => tagsOf(t).includes("Сигнал McQ");
-      const a = s.closed.filter(isM), b = s.closed.filter((t) => !isM(t));
-      if (!a.length) return wg("mcq", emptyW("Пока нет сделок по сигналам McQ", "Отметь сделку тегом «Сигнал McQ» — здесь появится сравнение с твоими собственными сделками.") + `<button class="jr-tool" data-j="tab" data-v="signals" style="align-self:center">${esc(_t("Открыть сигналы"))}</button>`);
-      const col = (list, title) => { const x = stats(list); return `<div><div class="wg-cap">${esc(_t(title))}</div>${big("", fmtUsd(x.net), cls(x.net), "", true)}<div class="wg-list" style="margin-top:6px">${li("Сделок", x.n)}${li("Win rate", `${Math.round(x.winRate * 100)}%`)}${li("Profit factor", pfS(x.pf))}${li("Средняя сделка", fmtUsd(x.expectancy), cls(x.expectancy))}</div></div>`; };
-      return wg("mcq", `<div class="wg-two">${col(a, "По сигналам McQ")}${col(b, "Свои сделки")}</div>`);
     },
     recent(s) {
       const list = s.closed.slice(-8).reverse();
@@ -1462,7 +1455,7 @@
     return h;
   }
 
-  const TAGS = ["Пробой", "Отбой", "Тренд", "Сигнал McQ", "FOMO", "Отыгрыш", "По плану", "Ранний выход"];
+  const TAGS = ["Пробой", "Отбой", "Тренд", "FOMO", "Отыгрыш", "По плану", "Ранний выход"];
   function renderTrades() {
     const el = $("#jr-trades");
     if (!el) return;

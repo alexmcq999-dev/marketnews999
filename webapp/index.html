@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#000000">
   <title>McQCryptoNews</title>
-  <meta name="description" content="McQCryptoNews — рынки, сигналы, настроения, новости и графики в Telegram">
+  <meta name="description" content="McQCryptoNews — рынки, настроения, новости, графики и торговый журнал в Telegram">
   <link rel="icon" href="favicon.ico" sizes="48x48">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
   <link rel="icon" type="image/svg+xml" href="mark.svg">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="McQCryptoNews">
-  <meta property="og:title" content="McQCryptoNews — рынки, сигналы и торговый журнал">
+  <meta property="og:title" content="McQCryptoNews — рынки, новости и торговый журнал">
   <meta property="og:description" content="Котировки и настроения рынка, торговые сигналы, новости, Pro Chart с объёмами по 9 биржам и торговый журнал с ИИ-разбором.">
   <meta property="og:url" content="https://mcqcryptonews.pages.dev/">
   <meta property="og:image" content="https://mcqcryptonews.pages.dev/icons/og.jpg">
@@ -120,14 +120,6 @@
       </div>
       <div id="ov-main"></div>
     </section>
-    <section id="tab-signals" class="tab" aria-label="Сигналы">
-      <button class="pc-card jr-entry glass pressable" id="jr-open" type="button">
-        <span class="pc-card-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C8B08A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <span class="pc-card-t"><b>Мой торговый журнал</b><small>Подключи биржу — статистика твоих сделок, ошибки и ИИ-разбор</small></span>
-        <span class="pc-card-go" aria-hidden="true">→</span>
-      </button>
-      <div id="signals-body"></div>
-    </section>
     <section id="tab-news" class="tab" aria-label="Новости"></section>
     <section id="tab-charts" class="tab" aria-label="Графики">
       <button class="pc-card glass pressable" id="pc-open" type="button">
@@ -144,7 +136,9 @@
           <span>RSI</span>
         </label>
       </div>
-      <div class="chart-box glass"><div id="tv-chart"></div></div>
+      <div class="chart-box glass" id="chart-box"><div id="tv-chart"></div>
+        <button class="chart-fs" id="chart-fs" type="button" aria-label="На весь экран" title="На весь экран"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
       <p class="hint">Графики TradingView в реальном времени. S&amp;P 500 и Nasdaq — через CFD-котировки, они повторяют индекс.</p>
       <div id="liq-box" class="pro-only"></div>
     </section>
@@ -156,9 +150,9 @@
     <button class="nav-btn active" data-tab="overview" role="tab" aria-selected="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       <span>Обзор</span></button>
-    <button class="nav-btn" data-tab="signals" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l3-7 4 14 3-7h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>Сигналы</span></button>
+    <button class="nav-btn nav-jr" data-open="journal" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Журнал</span></button>
     <button class="nav-btn" data-tab="news" role="tab" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11v16H6a1 1 0 0 1-1-1zM16 8h3v10a2 2 0 0 1-2 2M8 8h5M8 12h5M8 16h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Новости</span></button>
@@ -183,7 +177,7 @@
       <button class="login-btn tg" data-login="telegram"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM9.4 14.1l8.6-5.4c.4-.3.8-.1.5.2l-7 6.4-.3 3.1z" fill="currentColor"/></svg><span>Войти через Telegram</span></button>
       <button class="login-btn" data-login="google"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" fill="#fff"/><path d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z" fill="#cfcfcf"/><path d="M6.4 13.9a6 6 0 0 1 0-3.8V7.5H3.1a10 10 0 0 0 0 9z" fill="#9a9a9a"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" fill="#e6e6e6"/></svg><span>Войти через Google</span></button>
       <div class="login-err" role="alert"></div>
-      <small>Входя, ты соглашаешься, что сигналы — не финансовый совет.</small>
+      <small>Входя, ты соглашаешься, что материалы приложения — не финансовый совет.</small>
     </div>
   </div>
   <div class="toast glass" id="toast" role="status" aria-live="polite"></div>
@@ -196,11 +190,11 @@
       <p>Приложение подстроится. Сменить можно в любой момент вверху экрана.</p>
       <button class="onb-opt glass pressable" data-m="simple">
         <span class="onb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg></span>
-        <span><b>Новичок</b><small>Куда идёт рынок простыми словами. Готовые сделки по шагам: вход, стоп, цель. Подсказки к каждому блоку.</small></span>
+        <span><b>Новичок</b><small>Куда идёт рынок простыми словами. Подсказки к каждому блоку.</small></span>
       </button>
       <button class="onb-opt glass pressable" data-m="pro">
         <span class="onb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M10 19V5M15 19v-6M20 19V8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg></span>
-        <span><b>Продвинутый</b><small>Все инструменты: R, позиция, сила сигнала, RSI, толпа на фьючерсах, карта ликвидаций, статистика и бэктест стратегии.</small></span>
+        <span><b>Продвинутый</b><small>Все инструменты: RSI, страх и жадность, карта ликвидаций, Pro Chart с отслеживанием позиции.</small></span>
       </button>
     </div>
   </div>
