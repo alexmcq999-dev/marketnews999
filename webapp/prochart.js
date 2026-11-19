@@ -515,7 +515,7 @@
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.06 } },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7, minBarSpacing: 2 },
       kineticScroll: { mouse: true, touch: true },
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
       handleScale: { axisPressedMouseMove: { time: true, price: true }, mouseWheel: true, pinch: true },
       crosshair: { mode: LW.CrosshairMode.Normal,
         vertLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" },
@@ -563,7 +563,40 @@
     const wrap = $("#pc-chart");
     const checkFit = () => setTimeout(() => { const f = $("#pc-fit"); if (f) f.hidden = ser.candle.priceScale().options().autoScale !== false; }, 60);
     ["touchend", "mouseup", "wheel"].forEach((ev) => wrap.addEventListener(ev, checkFit, { passive: true }));
+    freePan(wrap, checkFit);
     $("#pc-fit").addEventListener("click", () => { fitView(); $("#pc-fit").hidden = true; });
+  }
+  // Свободное перемещение, как в TradingView: тянешь график — двигается и время, и цена.
+  // Время двигает сам график; цену сдвигаем мы, по вертикальной составляющей жеста (только в верхней панели, не на шкале).
+  function freePan(wrap, done) {
+    const act = new Map();
+    let g = null;
+    const inMain = (e) => {
+      const r = wrap.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const ps = ser.candle.priceScale(), pw = ps.width ? ps.width() : 60, h = chart.panes()[0].getHeight();
+      return x >= 0 && x < r.width - pw && y >= 0 && y < h;
+    };
+    wrap.addEventListener("pointerdown", (e) => {
+      act.set(e.pointerId, 1);
+      if (act.size > 1 || S.pick || S.anchorMode || (e.pointerType === "mouse" && e.button !== 0) || !inMain(e)) { g = null; return; }
+      // если шкала уже ручная, график сам двигает цену при перетаскивании — вмешиваемся только в авто-режиме
+      if (ser.candle.priceScale().options().autoScale === false) { g = null; return; }
+      const range = ser.candle.priceScale().getVisibleRange && ser.candle.priceScale().getVisibleRange();
+      if (!range) return;
+      g = { id: e.pointerId, y0: e.clientY, x0: e.clientX, range, h: chart.panes()[0].getHeight(), moved: false };
+    }, { passive: true });
+    wrap.addEventListener("pointermove", (e) => {
+      if (!g || e.pointerId !== g.id || act.size > 1) return;
+      const dy = e.clientY - g.y0;
+      if (!g.moved && Math.abs(dy) < 4) return;
+      g.moved = true;
+      const ppp = (g.range.to - g.range.from) / Math.max(1, g.h);
+      const ps = ser.candle.priceScale();
+      if (ps.options().autoScale !== false) ps.applyOptions({ autoScale: false });
+      ps.setVisibleRange({ from: g.range.from + dy * ppp, to: g.range.to + dy * ppp });
+    }, { passive: true });
+    const end = (e) => { act.delete(e.pointerId); if (g && e.pointerId === g.id) { if (g.moved) done(); g = null; } if (act.size > 1) g = null; };
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => wrap.addEventListener(ev, end, { passive: true }));
   }
   function idxOf(t) {
     let lo = 0, hi = S.cs.length - 1;
