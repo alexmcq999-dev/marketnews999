@@ -769,3 +769,15 @@ button.st:hover, .mk:hover { background: #151517; }
 @media (max-width: 600px) { .jr-pop.info { width: calc(100vw - 16px); max-height: 70vh; overflow-y: auto; } .jp-pre { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .wg-h .wg-link { white-space: nowrap; flex: none; }
 .ji-k i { font-style: normal; width: 14px; text-align: center; font-size: 12px; }
+
+/* выбор опыта при первом входе: на компьютере — аккуратное окно по центру */
+@media (min-width: 720px) {
+  .onb { align-items: center; justify-items: center; padding: 24px; }
+  .onb-sheet { width: 100%; max-width: 480px; margin: 0; padding: 30px 26px 24px; border-radius: 22px; box-sizing: border-box;
+    background: #141416 !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px -20px rgba(0,0,0,.8) !important; }
+  .onb-sheet h2 { font-size: 22px; }
+  .onb-opt { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.035) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07) !important; transition: background .15s ease, box-shadow .15s ease; }
+  .onb-opt:hover { background: rgba(255,255,255,.07) !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16) !important; }
+  .onb-opt b { font-size: 15.5px; }
+  .onb-ic { width: 38px; height: 38px; border-radius: 11px; }
+}

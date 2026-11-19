@@ -513,7 +513,10 @@
         panes: { separatorColor: "rgba(255,255,255,.08)", separatorHoverColor: "rgba(255,255,255,.14)", enableResize: true } },
       grid: { vertLines: { color: C.hair }, horzLines: { color: C.hair } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.06 } },
-      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 },
+      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7, minBarSpacing: 2 },
+      kineticScroll: { mouse: true, touch: true },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: { time: true, price: true }, mouseWheel: true, pinch: true },
       crosshair: { mode: LW.CrosshairMode.Normal,
         vertLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" },
         horzLine: { color: "rgba(255,255,255,.28)", labelBackgroundColor: "#1c1c1c" } },
@@ -522,7 +525,8 @@
     ser.candle = chart.addSeries(LW.CandlestickSeries, {
       upColor: C.up, downColor: C.down, wickUpColor: C.up, wickDownColor: C.down, borderVisible: false, priceLineColor: "rgba(255,255,255,.5)",
     });
-    const line = (color, width, style, extra) => chart.addSeries(LW.LineSeries, Object.assign({ color, lineWidth: width, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, extra || {}));
+    // VWAP и полосы не участвуют в автомасштабе: шкала цены строится по свечам, как в TradingView
+    const line = (color, width, style, extra) => chart.addSeries(LW.LineSeries, Object.assign({ color, lineWidth: width, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null }, extra || {}));
     ser.vwap = line("#ffffff", 2, 0, { lastValueVisible: true, title: "VWAP" });
     ser.u1 = line("rgba(255,255,255,.32)", 1, 2); ser.d1 = line("rgba(255,255,255,.32)", 1, 2);
     ser.u2 = line("rgba(255,255,255,.18)", 1, 1); ser.d2 = line("rgba(255,255,255,.18)", 1, 1);
@@ -598,7 +602,13 @@
     ser.candle.setData(cs.map((k) => ({ time: k.t, open: k.o, high: k.h, low: k.l, close: k.c })));
     // линия сессионного VWAP рвётся на начале новой сессии (прозрачный сегмент)
     // цвет точки задаёт сегмент от неё к следующей — прячем отрезок, который «перепрыгивает» в новую сессию
-    const seg = (key, mul) => I.sess.map((p, i) => ({ time: p.t, value: p.v + mul * p.sd, color: I.sess[i + 1] && I.sess[i + 1].reset ? "rgba(0,0,0,0)" : undefined }));
+    // точки VWAP, которые явно оторваны от цены (неполные данные в начале истории), не рисуем
+    const closeAt = new Map(cs.map((k) => [k.t, k.c]));
+    const seg = (key, mul) => I.sess.map((p, i) => {
+      const v = p.v + mul * p.sd, c = closeAt.get(p.t);
+      if (!isFinite(v) || (c && Math.abs(v - c) / c > 0.2)) return { time: p.t };
+      return { time: p.t, value: v, color: I.sess[i + 1] && I.sess[i + 1].reset ? "rgba(0,0,0,0)" : undefined };
+    });
     ser.vwap.setData(S.show.vwap ? seg("v", 0) : []);
     ser.u1.setData(S.show.bands ? seg("u1", 1) : []); ser.d1.setData(S.show.bands ? seg("d1", -1) : []);
     ser.u2.setData(S.show.bands ? seg("u2", 2) : []); ser.d2.setData(S.show.bands ? seg("d2", -2) : []);
