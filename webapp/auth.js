@@ -91,7 +91,7 @@
   function userView(u) {
     const m = u.user_metadata || {};
     const provider = m.provider === "telegram" ? "Telegram" : (u.app_metadata && u.app_metadata.provider === "google" ? "Google" : (u.app_metadata || {}).provider || "");
-    return { name: m.name || m.full_name || m.username || (u.email || "").split("@")[0], avatar: m.avatar_url || m.picture || "", provider, username: m.username };
+    return { name: m.name || m.full_name || m.username || (u.email || "").split("@")[0], avatar: m.custom_avatar || m.avatar_url || m.picture || "", custom: !!m.custom_avatar, provider, username: m.username };
   }
   function renderProfile() {
     const btn = $("#profile-btn"), sheet = $("#profile");
@@ -103,15 +103,19 @@
     const v = userView(u);
     const ini = esc((v.name || "?").trim().slice(0, 1).toUpperCase());
     btn.innerHTML = v.avatar ? `<img src="${esc(v.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><i>${ini}</i>` : `<i>${ini}</i>`;
-    sheet.innerHTML = `<div class="pf-head"><span class="pf-ava">${btn.innerHTML}</span>
+    const sales = !!(window.Pro && window.Pro.sales);
+    sheet.innerHTML = `<div class="pf-head"><button class="pf-ava pf-ava-btn" data-pf="avatar" aria-label="${esc(t("Сменить фото"))}" title="${esc(t("Сменить фото"))}">${btn.innerHTML}<em aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></svg></em></button>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
-      ${AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
-      <button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>
+      <div class="pf-photo"><button data-pf="avatar">${esc(t(v.custom ? "Сменить фото" : "Загрузить своё фото"))}</button>${v.custom ? `<button data-pf="avatar-del" class="muted">${esc(t("Убрать"))}</button>` : ""}</div>
+      ${sales && AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
+      ${sales ? `<button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>` : ""}
       <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
       <button data-pf="tour">${esc(t("Как пользоваться"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
       ${inTG ? "" : `<button data-pf="logout" class="danger">${esc(t("Выйти"))}</button>`}`;
     sheet.querySelectorAll("[data-pf]").forEach((b) => b.addEventListener("click", async () => {
+      if (b.dataset.pf === "avatar") { pickAvatar(); return; }
+      if (b.dataset.pf === "avatar-del") { removeAvatar(); return; }
       closeSheet();
       if (b.dataset.pf === "refresh") { const r = $("#refresh"); if (r) r.click(); }
       if (b.dataset.pf === "journal" && window.Journal) window.Journal.open();
@@ -119,6 +123,67 @@
       if (b.dataset.pf === "tour" && window.Tour) window.Tour.start();
       if (b.dataset.pf === "logout") { await AUTH.sb.auth.signOut(); }
     }));
+  }
+  // ---------------- своё фото профиля: обрезаем по центру до 256×256, сжимаем в JPEG и кладём в Supabase Storage (avatars/<id>/)
+  const toast = (m) => { if (window.McQ && window.McQ.toast) window.McQ.toast(m); else console.log(m); };
+  function pickAvatar() {
+    let inp = document.getElementById("ava-input");
+    if (!inp) {
+      inp = document.createElement("input");
+      inp.type = "file"; inp.accept = "image/*"; inp.id = "ava-input"; inp.hidden = true;
+      document.body.appendChild(inp);
+      inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; inp.value = ""; if (f) uploadAvatar(f); });
+    }
+    inp.click();
+  }
+  function squareJpeg(file, size) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const s = Math.min(img.naturalWidth, img.naturalHeight);
+        if (!s) { URL.revokeObjectURL(url); rej(new Error("img")); return; }
+        const c = document.createElement("canvas"); c.width = c.height = size;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#111"; ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        c.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("img")); };
+      img.src = url;
+    });
+  }
+  async function uploadAvatar(file) {
+    if (!AUTH.sb || !AUTH.user) return;
+    if (!/^image\//.test(file.type || "image/")) { toast(t("Это не картинка")); return; }
+    if (file.size > 15 * 1024 * 1024) { toast(t("Файл больше 15 МБ")); return; }
+    const box = document.querySelector("#profile .pf-ava-btn");
+    if (box) box.classList.add("busy");
+    try {
+      const blob = await squareJpeg(file, 256);
+      const path = `${AUTH.user.id}/avatar.jpg`;
+      const up = await AUTH.sb.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "3600" });
+      if (up.error) throw up.error;
+      const pub = AUTH.sb.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+      const r = await AUTH.sb.auth.updateUser({ data: { custom_avatar: `${pub}?v=${Date.now()}` } });
+      if (r.error) throw r.error;
+      AUTH.user = r.data.user || AUTH.user;
+      renderProfile(); saveProfile(AUTH.user);
+      toast(t("Фото обновлено"));
+    } catch (e) {
+      console.warn("avatar", e);
+      toast(t("Не удалось загрузить фото. Попробуй ещё раз."));
+    } finally { if (box) box.classList.remove("busy"); }
+  }
+  async function removeAvatar() {
+    if (!AUTH.sb || !AUTH.user) return;
+    try {
+      await AUTH.sb.storage.from("avatars").remove([`${AUTH.user.id}/avatar.jpg`]).catch(() => null);
+      const r = await AUTH.sb.auth.updateUser({ data: { custom_avatar: null } });
+      if (r.error) throw r.error;
+      AUTH.user = r.data.user || AUTH.user;
+      renderProfile(); saveProfile(AUTH.user);
+    } catch (e) { toast(t("Не удалось убрать фото")); }
   }
   function closeSheet() { const s = $("#profile"); if (s) { s.classList.remove("show"); setTimeout(() => { s.hidden = true; }, 200); } }
   function bindProfile() {
@@ -151,7 +216,7 @@
 
   // золотой статус PRO — у оплаченной подписки (пробный период выглядит как обычный аккаунт)
   function planUi() {
-    const paid = AUTH.plan === "pro" && AUTH.planSource !== "trial";
+    const paid = !!(window.Pro && window.Pro.sales) && AUTH.plan === "pro" && AUTH.planSource !== "trial";
     document.documentElement.classList.toggle("is-pro", paid);
     const b = document.querySelector(".pro-badge");
     if (b) b.title = paid ? "McQ PRO" : "";

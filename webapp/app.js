@@ -1099,7 +1099,7 @@
     const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset) && !String(state.asset).includes(":");
     if (window.ProChart) window.ProChart.open({ symbol: crypto ? state.asset : "BTC" });
   });
-  window.McQ = { sig: () => null, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data };
+  window.McQ = { sig: () => null, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data, toast: (m) => toast(esc(m)) };
   window.addEventListener("hashchange", routeHash);
 
   mountDominance();

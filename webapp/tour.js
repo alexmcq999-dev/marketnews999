@@ -20,9 +20,9 @@
     { el: '.nav-btn[data-tab="news"]', before: () => tab("news"), title: "Новости", text: "Главные события для крипты и рынков с пересказом и влиянием на цену. Обновляются дважды в день." },
     { el: "#pc-open", before: () => tab("charts"), title: "Pro Chart", text: "Свечи и объёмы сразу с 9 крупнейших бирж, VWAP в каждой свече и ИИ-ассистент, который разбирает график." },
     { el: '.nav-btn[data-tab="calendar"]', before: () => tab("calendar"), title: "Календарь", text: "Важные макро-события недели: ставки, инфляция, отчёты — и как на них реагировал рынок." },
-    { el: "#profile-btn", before: () => tab("overview"), title: "Профиль", text: "Подписка McQ Pro, торговый журнал и настройки аккаунта — здесь." },
+    { el: "#profile-btn", before: () => tab("overview"), title: "Профиль", text: (window.Pro && window.Pro.sales) ? "Подписка McQ Pro, торговый журнал и настройки аккаунта — здесь." : "Своё фото, торговый журнал и настройки аккаунта — здесь." },
     { el: "#lang-btn", title: "Язык", text: "Приложение на шести языках: русский, английский, испанский, французский, корейский и китайский." },
-    { center: true, icon: "🚀", final: true, title: "Всё готово!", text: "Начни с вкладки «Обзор». А чтобы открыть Pro Chart и ИИ-разборы — попробуй McQ Pro." },
+    { center: true, icon: "🚀", final: true, title: "Всё готово!", text: (window.Pro && window.Pro.sales) ? "Начни с вкладки «Обзор». А чтобы открыть Pro Chart и ИИ-разборы — попробуй McQ Pro." : "Начни с вкладки «Обзор». Pro Chart, торговый журнал и ИИ-разборы — бесплатно." },
   ];
 
   const S = { i: 0, el: null, steps: [], running: false };

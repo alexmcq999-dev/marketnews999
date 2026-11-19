@@ -791,3 +791,22 @@ button.st:hover, .mk:hover { background: #151517; }
 .jr-sh-h .jr-ex-ic { margin-right: 10px; }
 .jr-sh-h { align-items: center; }
 .jr-sh-h b { flex: 1; }
+
+/* подписка выключена: никаких значков PRO и предложений оплатить */
+html.free-all .pc-pro, html.free-all .nav-tool i, html.free-all .wg-pro, html.free-all .jr-ai .pc-pro, html.free-all .pro-badge, html.free-all .pf-pro { display: none !important; }
+html.free-all .profile-btn { box-shadow: none; }
+
+/* своё фото профиля */
+.pf-ava-btn { border: 0; padding: 0; cursor: pointer; color: var(--text); overflow: visible !important; }
+.pf-ava-btn img { border-radius: 50%; }
+.pf-ava-btn em { position: absolute; z-index: 4; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: #F2F0EC; color: #0B0B0C; box-shadow: 0 0 0 2px #141416; font-style: normal; }
+.pf-ava-btn.busy::after { content: ""; position: absolute; inset: 0; z-index: 5; border-radius: 50%; background: rgba(0,0,0,.55) center / 18px no-repeat;
+  animation: pfspin .8s linear infinite; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; box-sizing: border-box; }
+@keyframes pfspin { to { transform: rotate(360deg); } }
+.pf-photo { display: flex; gap: 6px; padding: 0 0 8px; margin-bottom: 6px; box-shadow: inset 0 -1px 0 var(--hair, rgba(255,255,255,.08)); }
+#profile .pf-photo button { flex: 1; text-align: center; font-size: 13px; font-weight: 600; padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,.06); }
+#profile .pf-photo button.muted { flex: none; color: var(--text-m); background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+#profile .pf-ava-btn { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--glass-strong, #1C1C1F); text-align: center; }
+#profile .pf-photo button { width: auto; }
+#profile .pf-who { min-width: 0; flex: 1; }

@@ -226,6 +226,9 @@
     }
   }
 
-  window.Pro = { open, close, available: () => !!(CFG.supabaseUrl && CFG.supabaseKey), _test: { S, render } };
+  // продажа подписки включена только в режиме PREMIUM_MODE=paid; в режиме open всё бесплатно и оплата не предлагается
+  const SALES = CFG.premium === "paid";
+  document.documentElement.classList.toggle("free-all", !SALES);
+  window.Pro = { open: (...a) => (SALES ? open(...a) : null), close, available: () => SALES && !!(CFG.supabaseUrl && CFG.supabaseKey), sales: SALES, _test: { S, render } };
   if (location.hash === "#pro") setTimeout(open, 600);
 })();

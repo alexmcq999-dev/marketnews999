@@ -2,7 +2,7 @@
    Регистрируется только вне Telegram (в установленном приложении и в браузере). */
 try { importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js"); } catch (e) { /* без пушей */ }
 
-const CACHE = "mcq-shell-v10";
+const CACHE = "mcq-shell-v11";
 const SHELL = ["./", "index.html", "style.css", "ui.css", "desk.js", "app.js", "auth.js", "prochart.js", "jr-info.js", "journal.js", "pro.js", "tour.js", "i18n.js", "sessions.js", "mark.svg", "bg.jpg",
   "manifest.webmanifest", "icons/icon-192.png",
   "fonts/inter-latin-wght-normal.woff2", "fonts/inter-cyrillic-wght-normal.woff2"];
