@@ -1,4 +1,4 @@
-/* McQ Pro — экран подписки и оплата.
+/* CANDEL Pro — экран подписки и оплата.
    • В Telegram (мини-приложение) — только Telegram Stars: ежемесячная подписка через Telegram.WebApp.openInvoice.
      Правила Telegram запрещают внутри мини-приложений другие способы оплаты цифровых товаров.
    • В браузере / PWA — USDT через Crypto Pay (разово, 30 дней) и, как запасной вариант, Stars в приложении Telegram.
@@ -85,8 +85,8 @@
     const canTrial = !!st.trial_available && !!(c.stars || c.usdt);
     const usd = c.usdt ? c.usdt.price : 29.9;
     const head = `<button class="pro-x" data-pro="close" aria-label="${esc(_t("Закрыть"))}">✕</button>
-      <div class="pro-tag">McQ PRO</div>
-      <h3>${esc(state === "trial-done" ? _t("Пробный период активирован") : state === "done" ? _t("McQ Pro активирован") : _t("Инструменты для тех, кто торгует всерьёз"))}</h3>
+      <div class="pro-tag">CANDEL PRO</div>
+      <h3>${esc(state === "trial-done" ? _t("Пробный период активирован") : state === "done" ? _t("CANDEL Pro активирован") : _t("Инструменты для тех, кто торгует всерьёз"))}</h3>
       ${state === "done" || state === "trial-done" || paid ? "" : `<div class="pro-price"><b>$${usd}</b> / ${esc(_t("мес"))}${canTrial ? ` · <span>${esc(_t("первые {n} дня бесплатно").replace("{n}", trialDays))}</span>` : ""}</div>`}`;
     const feats = `<ul class="pro-feats">${FEATURES.map(([k, h, d]) => `<li><span class="pro-ic">${icon(k)}</span><span><b>${esc(_t(h))}</b><small>${esc(_t(d))}</small></span></li>`).join("")}</ul>`;
     let status = "";

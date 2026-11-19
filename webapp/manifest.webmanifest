@@ -1,14 +1,14 @@
 {
-  "name": "McQCryptoNews",
-  "short_name": "McQ",
-  "description": "Крипто-рынок, сигналы, новости, Крипто X и Perp DEX — McQCryptoNews",
+  "name": "CANDEL",
+  "short_name": "CANDEL",
+  "description": "CANDEL — ясность в сложном рынке: новости, календарь, графики и торговый журнал",
   "id": "./",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#090B0F",
+  "theme_color": "#090B0F",
   "lang": "ru",
   "categories": ["finance", "news"],
   "icons": [
@@ -17,7 +17,7 @@
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Сигналы", "url": "./#signals", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Журнал", "url": "./#journal", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Новости", "url": "./#news", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

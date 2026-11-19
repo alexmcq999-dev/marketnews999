@@ -1,4 +1,4 @@
-/* McQCryptoNews — навигация в стиле сайта.
+/* CANDEL — навигация в стиле сайта.
    • Компьютер: разделы — горизонтальным меню в шапке, рядом «Журнал» и «Pro Chart».
    • Телефон и PWA: сплошная нижняя панель (стили в ui.css).
    Клик по разделу закрывает открытый журнал или Pro Chart; открытое окно подсвечивается в меню. */
@@ -26,10 +26,8 @@
 
   // меню в шапке начинается сразу после логотипа (и значка PRO), чтобы ничего не перекрывать
   const brand = document.querySelector(".top .brand");
-  const place = () => {
-    if (!window.matchMedia("(min-width: 1024px)").matches || !brand) { tb.style.left = ""; return; }
-    tb.style.left = `${Math.round(brand.getBoundingClientRect().right + 28)}px`;
-  };
+  // меню теперь слева (ui.css), отступ от логотипа больше не нужен
+  const place = () => { tb.style.left = ""; };
   place();
   window.addEventListener("resize", place);
   if (window.ResizeObserver && brand) new ResizeObserver(place).observe(brand);
@@ -49,12 +47,31 @@
     brand.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); home(); } });
   }
 
+  // заголовок раздела в верхней строке (компьютер): название раздела или открытого окна + время обновления данных
+  const top = document.querySelector(".top");
+  const tt = document.createElement("div");
+  tt.className = "top-title";
+  tt.innerHTML = `<b></b><small></small>`;
+  if (top) top.prepend(tt);
+  const upd = document.getElementById("updated-text");
+  const setTitle = () => {
+    const j = document.getElementById("jr"), p = document.getElementById("pc");
+    const open = (el) => !!(el && !el.hidden && el.classList.contains("show"));
+    const act = tb.querySelector(".nav-btn.active span");
+    tt.querySelector("b").textContent = open(p) ? "Pro Chart" : open(j) ? _t("Журнал") : act ? act.textContent : "";
+    tt.querySelector("small").textContent = upd ? upd.textContent : "";
+  };
+  new MutationObserver(setTitle).observe(tb, { subtree: true, attributes: true, attributeFilter: ["class"] });
+  if (upd) new MutationObserver(setTitle).observe(upd, { childList: true, characterData: true, subtree: true });
+  setTimeout(setTitle, 300);
+
   const shown = (id) => { const el = document.getElementById(id); return !!(el && !el.hidden && el.classList.contains("show")); };
   const sync = () => {
     const j = shown("jr"), p = shown("pc");
     tools.querySelector('[data-open="pc-open"]').classList.toggle("active", p);
     tools.querySelector('[data-open="jr-open"]').classList.toggle("active", j && !p);
     document.documentElement.classList.toggle("overlay-open", j || p);
+    setTitle();
   };
   new MutationObserver(() => setTimeout(sync, 40)).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   tb.addEventListener("click", (e) => {

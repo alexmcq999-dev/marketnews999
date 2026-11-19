@@ -1,5 +1,5 @@
-// McQ Pro Chart — ИИ-ассистент. Получает вопрос пользователя и снимок графика (агрегированные свечи с VWAP,
-// сессионный/якорный VWAP, профиль объёма, CVD, OI, фандинг, доли бирж, сигнал McQ), спрашивает LLM и
+// Pro Chart — ИИ-ассистент. Получает вопрос пользователя и снимок графика (агрегированные свечи с VWAP,
+// сессионный/якорный VWAP, профиль объёма, CVD, OI, фандинг, доли бирж, сигнал CANDEL), спрашивает LLM и
 // возвращает разбор + уровни, которые клиент рисует на графике.
 // Секреты функции: LLM_API_KEY (тот же ключ OpenRouter, что у бота). Необязательно: LLM_MODEL (через запятую),
 // LLM_BASE_URL, PREMIUM_MODE (open | paid), AI_FREE_LIMIT (по умолч. 15/день), AI_PRO_LIMIT (по умолч. 100/день).
@@ -19,16 +19,16 @@ const LANGS: Record<string, string> = { ru: "Russian", en: "English", es: "Spani
 const KINDS = new Set(["support", "resistance", "entry", "stop", "target", "liquidity"]);
 
 function system(lang: string) {
-  return `You are McQ AI — a senior crypto derivatives trader and market-microstructure analyst inside the McQ Pro Chart app.
+  return `You are CANDEL AI — a senior crypto derivatives trader and market-microstructure analyst inside the Pro Chart app.
 You receive a JSON snapshot aggregated across major exchanges (spot + perpetuals: Binance, Bybit, OKX, Bitget, Gate, Hyperliquid, Coinbase, Kraken):
 candles with per-candle VWAP, USD volume, estimated taker delta (from Binance takers, extrapolated) and spot share; session VWAP with sigma;
 anchored VWAP (if the user set one); volume profile of the last 120 bars (POC/VAH/VAL); CVD change; aggregated open interest and its change;
-funding by exchange; exchange volume shares; volume spikes; and the McQ bot's open signal for this coin, if any.
+funding by exchange; exchange volume shares; volume spikes; and the CANDEL bot's open signal for this coin, if any.
 Rules:
 - Use ONLY the data provided. Never invent prices, news, events or indicators you were not given. If data is missing, say so briefly.
 - Be concrete: cite numbers (levels, sigma, % changes, delta, OI). Think in scenarios with triggers and invalidation.
 - Explain WHO is in control (aggressive buyers vs sellers, spot vs leverage) and WHERE liquidity/stops likely sit (range extremes, VAH/VAL, round numbers near price).
-- If a McQ signal exists, comment whether the current flow supports or contradicts it.
+- If a CANDEL signal exists, comment whether the current flow supports or contradicts it.
 - No certainty, no guarantees; it's analysis, not financial advice. Keep it tight: max ~170 words, short lines, may use **bold**, no headings, no tables.
 - Answer in ${LANGS[lang] || "English"}.
 Return STRICT JSON only:
@@ -41,7 +41,7 @@ Give a plan only if the user asks for a trade/plan or the setup is clear; otherw
 }
 
 function journalSystem(lang: string) {
-  return `You are McQ AI — a strict but supportive trading coach. You receive a JSON summary of the user's real closed positions
+  return `You are CANDEL AI — a strict but supportive trading coach. You receive a JSON summary of the user's real closed positions
 (from their exchange): totals, win rate, profit factor, avg win/loss, drawdown, fees, funding, streaks, holding times,
 trades opened within 30 min after a loss, splits by side / symbol / weekday / close hour, and the last 40 trades with the user's own tags.
 Write a review that helps them trade better:
@@ -55,7 +55,7 @@ Return STRICT JSON only: {"answer": string}`;
 }
 
 function tradeSystem(lang: string) {
-  return `You are McQ AI — a strict but supportive trading coach. You receive ONE closed position of the user (from their exchange):
+  return `You are CANDEL AI — a strict but supportive trading coach. You receive ONE closed position of the user (from their exchange):
 side, entry/exit, size, leverage, result, fees, funding, opened/closed time, holding time, MFE (best price move in the trade's favour, %),
 MAE (worst move against, %), how much of the best move was captured, how price moved 30 minutes after the exit, the user's tags and note,
 plus a little context (their usual win rate, average win/loss and holding times).
@@ -92,7 +92,7 @@ async function llm(messages: unknown[]) {
     try {
       const r = await fetch(`${base}/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://mcqcryptonews.pages.dev/", "X-Title": "McQ Pro Chart" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://mcqcryptonews.pages.dev/", "X-Title": "Pro Chart" },
         // reasoning-модели (Claude 5.x, GPT-6 и т.п.) тратят часть max_tokens на «размышления» — даём запас и просим думать коротко
         body: JSON.stringify({ model, messages, temperature: 0.3, max_tokens: 4000, reasoning: { effort: "low", exclude: true }, response_format: { type: "json_object" } }),
       });
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       return json({ answer: String(tout.answer || "").slice(0, 2500), pro, used: uerr ? null : used, limit });
     }
 
-    // разбор торгового журнала (McQ Journal)
+    // разбор торгового журнала (CANDEL Journal)
     if (body.kind === "journal") {
       const jout = await llm([
         { role: "system", content: journalSystem(lang) },

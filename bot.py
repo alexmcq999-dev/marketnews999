@@ -826,7 +826,7 @@ def previous_news() -> dict:
 
 
 def send_push(title: dict, body: dict, path: str = "") -> None:
-    """Пуш в приложение McQCryptoNews (OneSignal). title/body: {"ru": ..., "en": ...}. Без секретов — молча пропускаем."""
+    """Пуш в приложение CANDEL (OneSignal). title/body: {"ru": ..., "en": ...}. Без секретов — молча пропускаем."""
     app_id, key = os.getenv("ONESIGNAL_APP_ID"), os.getenv("ONESIGNAL_API_KEY")
     if not app_id or not key:
         return

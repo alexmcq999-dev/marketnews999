@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 import feedparser
 import requests
 
-UA = "Mozilla/5.0 (McQCryptoNews)"
+UA = "Mozilla/5.0 (CANDEL)"
 
 # --------------------------------------------------------------- кого читаем (правь список здесь)
 # min_faves — минимум лайков, чтобы пост вообще попал на оценку (у проектов реакция ниже, чем у CZ)

@@ -1,6 +1,6 @@
-/* McQCryptoNews — знакомство с приложением для новых пользователей.
+/* CANDEL — знакомство с приложением для новых пользователей.
    Показывается один раз: после выбора режима (Новичок / Продвинутый) и входа. Подсвечивает элементы по очереди:
-   режимы, вкладки, торговый журнал, Pro Chart, профиль и язык. В конце — предложение попробовать McQ Pro.
+   режимы, вкладки, торговый журнал, Pro Chart, профиль и язык. В конце — предложение попробовать CANDEL Pro.
    Повторить можно из профиля («Как пользоваться»). */
 (function () {
   "use strict";
@@ -13,16 +13,16 @@
   const visible = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
 
   const STEPS = [
-    { center: true, icon: "👋", title: "Добро пожаловать в McQCryptoNews", text: "За минуту покажем, где что находится: рынок, новости, графики и торговый журнал." },
+    { center: true, icon: "👋", title: "Добро пожаловать в CANDEL", text: "За минуту покажем, где что находится: рынок, новости, графики и торговый журнал." },
     { el: "#mode", before: () => tab("overview"), title: "Новичок или Продвинутый", text: "Переключай, сколько данных показывать. «Новичок» — только главное и подсказки, «Продвинутый» — RSI, ликвидации, толпа на фьючерсах и статистика." },
     { el: '.nav-btn[data-tab="overview"]', before: () => tab("overview"), title: "Обзор", text: "Главный экран: биткоин, настроение рынка, доминация BTC и торговые сессии мира в реальном времени." },
     { el: '.nav-btn[data-open="journal"], .nav-tool[data-open="jr-open"]', before: () => tab("overview"), title: "Торговый журнал", text: "Подключи свою биржу read-only ключом — журнал сам соберёт сделки, покажет ошибки и календарь результатов. Ключи остаются на телефоне." },
     { el: '.nav-btn[data-tab="news"]', before: () => tab("news"), title: "Новости", text: "Главные события для крипты и рынков с пересказом и влиянием на цену. Обновляются дважды в день." },
     { el: "#pc-open", before: () => tab("charts"), title: "Pro Chart", text: "Свечи и объёмы сразу с 9 крупнейших бирж, VWAP в каждой свече и ИИ-ассистент, который разбирает график." },
     { el: '.nav-btn[data-tab="calendar"]', before: () => tab("calendar"), title: "Календарь", text: "Важные макро-события недели: ставки, инфляция, отчёты — и как на них реагировал рынок." },
-    { el: "#profile-btn", before: () => tab("overview"), title: "Профиль", text: (window.Pro && window.Pro.sales) ? "Подписка McQ Pro, торговый журнал и настройки аккаунта — здесь." : "Своё фото, торговый журнал и настройки аккаунта — здесь." },
+    { el: "#profile-btn", before: () => tab("overview"), title: "Профиль", text: (window.Pro && window.Pro.sales) ? "Подписка CANDEL Pro, торговый журнал и настройки аккаунта — здесь." : "Своё фото, торговый журнал и настройки аккаунта — здесь." },
     { el: "#lang-btn", title: "Язык", text: "Приложение на шести языках: русский, английский, испанский, французский, корейский и китайский." },
-    { center: true, icon: "🚀", final: true, title: "Всё готово!", text: (window.Pro && window.Pro.sales) ? "Начни с вкладки «Обзор». А чтобы открыть Pro Chart и ИИ-разборы — попробуй McQ Pro." : "Начни с вкладки «Обзор». Pro Chart, торговый журнал и ИИ-разборы — бесплатно." },
+    { center: true, icon: "🚀", final: true, title: "Всё готово!", text: (window.Pro && window.Pro.sales) ? "Начни с вкладки «Обзор». А чтобы открыть Pro Chart и ИИ-разборы — попробуй CANDEL Pro." : "Начни с вкладки «Обзор». Pro Chart, торговый журнал и ИИ-разборы — бесплатно." },
   ];
 
   const S = { i: 0, el: null, steps: [], running: false };
@@ -98,7 +98,7 @@
         ${st.final ? "" : `<button class="tour-skip" data-t="skip">${esc(_t("Пропустить"))}</button>`}
         ${i > 0 && !st.final ? `<button class="tour-back" data-t="back" aria-label="${esc(_t("Назад"))}">←</button>` : ""}
         ${st.final
-          ? `${proBtn ? `<button class="tour-pro" data-t="pro">${esc(_t("Попробовать McQ Pro"))}</button>` : ""}<button class="tour-next${proBtn ? " alt" : ""}" data-t="done">${esc(_t("Начать"))}</button>`
+          ? `${proBtn ? `<button class="tour-pro" data-t="pro">${esc(_t("Попробовать CANDEL Pro"))}</button>` : ""}<button class="tour-next${proBtn ? " alt" : ""}" data-t="done">${esc(_t("Начать"))}</button>`
           : `<button class="tour-next" data-t="next">${esc(i === 0 ? _t("Показать") : _t("Далее"))}</button>`}
       </div>`;
     place();

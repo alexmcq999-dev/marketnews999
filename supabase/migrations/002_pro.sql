@@ -1,4 +1,4 @@
--- McQ Pro: подписка, лимиты ИИ-ассистента и лист ожидания. Выполнить один раз в Supabase → SQL Editor (после 001).
+-- CANDEL Pro: подписка, лимиты ИИ-ассистента и лист ожидания. Выполнить один раз в Supabase → SQL Editor (после 001).
 
 -- Подписка. Писать сюда может только админ/сервер (service role) — у клиентов есть лишь чтение своей строки.
 create table if not exists public.subscriptions (
@@ -23,7 +23,7 @@ alter table public.ai_usage enable row level security;
 drop policy if exists "own usage read" on public.ai_usage;
 create policy "own usage read" on public.ai_usage for select using (auth.uid() = user_id);
 
--- Заявки «Хочу McQ Pro»
+-- Заявки «Хочу CANDEL Pro»
 create table if not exists public.pro_waitlist (
   user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   created_at timestamptz not null default now()

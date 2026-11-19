@@ -1,4 +1,4 @@
-/* AlexMcQ · Market Pulse — монохромный Liquid Glass
+/* CANDEL — монохромный Liquid Glass
    Всегда тёмная тема: чёрный фон, белое стекло. Цвет — только у направления цены (рост/падение). */
 
 :root {
@@ -866,7 +866,7 @@ b.up, .nb-steps b.up { color: var(--up); } b.down, .nb-steps b.down { color: var
 .login-err { min-height: 18px; margin-top: 12px; font-size: 13px; color: var(--down); }
 .login-card small { display: block; margin-top: 6px; font-size: 11.5px; color: var(--text-3); }
 
-/* ---------------------------------------------------------------- McQ Pro Chart */
+/* ---------------------------------------------------------------- Pro Chart */
 .pc-card { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 14px; margin: 0 0 14px; border: 0; border-radius: 20px; text-align: left; color: var(--text); cursor: pointer;
   background: linear-gradient(135deg, rgba(200,176,138,.10), rgba(255,255,255,.04) 45%, rgba(255,255,255,.06)); }
 .pc-card-ic { flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(200,176,138,.25); }
@@ -1008,7 +1008,7 @@ html.no-tg .pc { padding-top: env(safe-area-inset-top, 0px); }
 .ambient .wm { color: rgba(255, 255, 255, .06); fill: none; stroke: none; filter: none; }
 @media (prefers-reduced-motion: reduce) { .pre-mark .pm-line, .pre-mark .pm-up { stroke-dashoffset: 0; } .pre-mark .pm-dot { transform: none; } }
 
-/* ================================================================ McQ Journal — торговый журнал */
+/* ================================================================ CANDEL Journal — торговый журнал */
 .jr-entry { margin-bottom: 14px; }
 .jr { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; background: #050505; color: var(--text);
   padding-top: calc(var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); opacity: 0; transform: translateY(14px); transition: opacity .25s ease, transform .3s var(--spring); }
@@ -1277,7 +1277,7 @@ html, body { overflow-x: clip; }
 .inst-btn.alt { margin-top: 8px; background: rgba(255,255,255,.08); color: var(--text); }
 .inst-dbg { display: block; margin-top: 10px; font-size: 10.5px; color: var(--text-3); text-align: center; }
 @media (min-width: 640px) { .inst { align-items: center; } .inst-card { border-radius: 26px; border-bottom: 1px solid rgba(255,255,255,.1); } }
-/* ---------------------------------------------------------------- McQ Pro: подписка */
+/* ---------------------------------------------------------------- CANDEL Pro: подписка */
 .pro { position: fixed; inset: 0; z-index: 95; display: flex; align-items: flex-end; justify-content: center; }
 .pro[hidden], .pro [hidden] { display: none !important; }
 .pro-bg { position: absolute; inset: 0; background: rgba(0,0,0,.66); opacity: 0; transition: opacity .25s ease; }
@@ -1327,7 +1327,7 @@ html, body { overflow-x: clip; }
 .pro-status.trial { background: rgba(200,176,138,.08); border-color: rgba(200,176,138,.32); }
 .pro-status.trial b { color: #C8B08A; }
 
-/* ---------------------------------------------------------------- золотой статус McQ PRO (оплаченная подписка) */
+/* ---------------------------------------------------------------- золотой статус CANDEL PRO (оплаченная подписка) */
 html.is-pro .pro-badge {
   display: inline-block; order: 2; font: 800 10px/1 var(--font); letter-spacing: .12em; padding: 4px 6px; border-radius: 6px; color: #1a1205;
   background: linear-gradient(110deg, #e0a92e 0%, #fbe08e 38%, #fff4c9 50%, #fbe08e 62%, #d99c22 100%); background-size: 220% 100%;

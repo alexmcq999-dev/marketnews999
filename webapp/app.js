@@ -1,4 +1,4 @@
-/* McQCryptoNews — Telegram Mini App */
+/* CANDEL — Telegram Mini App */
 (function () {
   "use strict";
 
@@ -654,7 +654,7 @@
     const avail = lm && lm.symbols ? Object.keys(lm.symbols) : [];
     let h = `<div class="section-title">${_t("Карта ликвидаций")} <small>${_t("оценка")}</small></div>`;
     if (!m) {
-      h += `<div class="glass card empty" style="padding:18px">${avail.length ? `${_t("Для")} ${esc(state.asset)} ${_t("карты нет. Есть для:")} ${avail.map(esc).join(", ")}.` : _t("Карта появится после ближайшего скана бота McQ Signals.")}</div>`;
+      h += `<div class="glass card empty" style="padding:18px">${avail.length ? `${_t("Для")} ${esc(state.asset)} ${_t("карты нет. Есть для:")} ${avail.map(esc).join(", ")}.` : _t("Карта появится после ближайшего обновления данных CANDEL.")}</div>`;
     } else {
       const n = m.bins.length, max = Math.max(1, ...m.long_usd, ...m.short_usd);
       let rows = "";
@@ -677,7 +677,7 @@
           <b>${_t("Магниты ниже")}</b><div class="res-chips">${cl(m.clusters_below) || "—"}</div>
           <div class="liq-tot">${_t("В пределах ±5%: шорты")} ${fmtUsd(m.within5_short)} · ${_t("лонги")} ${fmtUsd(m.within5_long)}</div></div>
       </div>
-      <p class="hint">${_t("Модель McQ Signals: часовой открытый интерес Binance + типичные плечи 5–100x; уровни, которые цена уже прошла, убраны. Это оценка, а не реальные позиции. Позиции последних ~суток не видны (данные по")} ${esc(m.data_until || "—")}). ${_t("Крупные скопления часто работают как «магниты» для цены.")}</p>`;
+      <p class="hint">${_t("Модель CANDEL: часовой открытый интерес Binance + типичные плечи 5–100x; уровни, которые цена уже прошла, убраны. Это оценка, а не реальные позиции. Позиции последних ~суток не видны (данные по")} ${esc(m.data_until || "—")}). ${_t("Крупные скопления часто работают как «магниты» для цены.")}</p>`;
     }
     h += `<button class="chip glass liq-cg">${_t("Тепловая карта на Coinglass ↗")}</button>`;
     box.innerHTML = h;
@@ -776,7 +776,7 @@
       withdateranges: false,
       save_image: false,
       studies: state.rsi ? ["RSI@tv-basicstudies"] : [],
-      backgroundColor: "#0E0E10",
+      backgroundColor: "#0D0F13",
       gridColor: "rgba(255,255,255,0.05)",
     });
   }
@@ -983,7 +983,7 @@
   async function enablePush(btn) {
     haptic();
     if (Notification.permission === "denied") {
-      toast(isIOS ? _t("Уведомления запрещены. Включи их: Настройки iPhone → Уведомления → McQ.") : _t("Уведомления запрещены в браузере. Разреши их в настройках сайта (значок замка в адресной строке)."));
+      toast(isIOS ? _t("Уведомления запрещены. Включи их: Настройки iPhone → Уведомления → CANDEL.") : _t("Уведомления запрещены в браузере. Разреши их в настройках сайта (значок замка в адресной строке)."));
       return;
     }
     if (btn) { btn.disabled = true; btn.textContent = "…"; }
@@ -1014,7 +1014,7 @@
       // в Telegram: предложить поставить приложение на телефон (с пушами)
       if (!LS.get("amq-promo-tg")) {
         h = `<div class="promo glass"><span class="promo-ic"><img src="icons/icon-192.png" alt=""></span>
-          <div class="promo-t"><b>${_t("McQCryptoNews на телефоне")}</b><span>${_t("Отдельное приложение с пуш-уведомлениями о важных событиях.")}</span></div>
+          <div class="promo-t"><b>${_t("CANDEL на телефоне")}</b><span>${_t("Отдельное приложение с пуш-уведомлениями о важных событиях.")}</span></div>
           <button class="promo-btn" data-act="open">${_t("Установить")}</button><button class="promo-x" data-act="hide-tg" aria-label="×">×</button></div>`;
       }
     } else if (!standalone && !LS.get("amq-promo-install")) {
@@ -1052,7 +1052,7 @@
       : [_t("Нажми «Открыть» — ссылка откроется в браузере."), _t("В Chrome нажми ⋮ → «Установить приложение» (или «Добавить на главный экран»).")];
     el.innerHTML = `<div class="inst-bg" data-i="close"></div><div class="inst-card glass" role="dialog" aria-modal="true">
         <button class="inst-x" data-i="close" aria-label="×">×</button>
-        <b class="inst-h">${_t("Установи McQCryptoNews на телефон")}</b>
+        <b class="inst-h">${_t("Установи CANDEL на телефон")}</b>
         <ol>${steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
         <div class="inst-url">${esc(url.replace(/^https:\/\//, ""))}</div>
         <button class="inst-btn" data-i="copy">${_t("Скопировать ссылку")}</button>
@@ -1093,7 +1093,7 @@
     if (h === "prochart" && window.ProChart) { switchTab("charts"); window.ProChart.open(); }
     if ((h === "journal" || h === "signals") && window.Journal) window.Journal.open();
   }
-  // McQ Pro Chart: кнопка во вкладке «Графики»
+  // Pro Chart: кнопка во вкладке «Графики»
   const pcBtn = $("#pc-open");
   if (pcBtn) pcBtn.addEventListener("click", () => {
     const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset) && !String(state.asset).includes(":");

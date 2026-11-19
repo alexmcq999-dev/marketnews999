@@ -1,4 +1,4 @@
-/* McQ Journal — торговый журнал.
+/* CANDEL Journal — торговый журнал.
    • Пользователь подключает биржу read-only ключом (или адресом кошелька для Hyperliquid).
    • Ключи хранятся ТОЛЬКО на этом устройстве: IndexedDB, зашифрованы AES-GCM неизвлекаемым ключом браузера.
      Запросы к биржам подписываются прямо на устройстве (WebCrypto), секрет никуда не отправляется.
@@ -1305,7 +1305,7 @@
     if (!CFG.supabaseUrl || !A || !A.enabled || !A.sb) { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор подключится вместе со входом в аккаунт."))}</p>`; return; }
     const sess = (await A.sb.auth.getSession()).data.session;
     if (!sess) { out.innerHTML = `<p class="jr-muted">${esc(_t("Войди в аккаунт, чтобы получить ИИ-разбор."))}</p>`; return; }
-    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в McQ Pro."))}</p>`; if (window.Pro && window.Pro.available()) window.Pro.open(); return; }
+    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в CANDEL Pro."))}</p>`; if (window.Pro && window.Pro.available()) window.Pro.open(); return; }
     const x = S.exc[t.id] || {}, r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
     const s = stats(filtered());
     const ctx = {
@@ -1322,7 +1322,7 @@
       const r = await fetch(`${CFG.supabaseUrl}/functions/v1/chart-ai`, { method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey, Authorization: `Bearer ${sess.access_token}` },
         body: JSON.stringify({ kind: "trade", question: "Review this trade", ctx, lang: I18.lang }) });
       const d = await r.json().catch(() => ({}));
-      if (r.status === 402) throw new Error(_t("ИИ-разбор торговли доступен в McQ Pro."));
+      if (r.status === 402) throw new Error(_t("ИИ-разбор торговли доступен в CANDEL Pro."));
       if (r.status === 429) throw new Error(_t("Лимит вопросов на сегодня исчерпан"));
       if (!r.ok || !d.answer) throw new Error(d.error || `${r.status}`);
       out.innerHTML = `<div class="jr-ai-a">${esc(d.answer).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>")}</div><small class="jr-muted">${esc(_t("Не финансовый совет."))}</small>`;
@@ -1659,7 +1659,7 @@
 
   function onboarding() {
     return `<div class="jr-onb">
-      <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C8B08A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C6AE83" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h2>${esc(_t("Твой торговый журнал"))}</h2>
       <p>${esc(_t("Подключи биржу — журнал сам соберёт все закрытые позиции и покажет, где ты зарабатываешь, а где теряешь: win rate, profit factor, просадку, лучшие монеты и часы, ошибки вроде отыгрыша."))}</p>
       <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}">${exLogo(k)}<span><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></span><em aria-hidden="true">›</em></button>`).join("")}</div>
@@ -1724,7 +1724,7 @@
     if (!CFG.supabaseUrl || !A || !A.enabled || !A.sb) { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор подключится вместе со входом в аккаунт."))}</p>`; return; }
     const sess = (await A.sb.auth.getSession()).data.session;
     if (!sess) { out.innerHTML = `<p class="jr-muted">${esc(_t("Войди в аккаунт, чтобы получить ИИ-разбор."))}</p>`; return; }
-    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в McQ Pro."))}</p>${window.Pro && window.Pro.available() ? `<button class="jr-ai" id="jr-go-pro" style="margin-top:8px">${esc(_t("Оформить McQ Pro"))}</button>` : ""}`; const g = $("#jr-go-pro"); if (g) g.addEventListener("click", () => window.Pro.open()); return; }
+    if (CFG.premium === "paid" && A.loadPlan && (await A.loadPlan()) !== "pro") { out.innerHTML = `<p class="jr-muted">${esc(_t("ИИ-разбор торговли доступен в CANDEL Pro."))}</p>${window.Pro && window.Pro.available() ? `<button class="jr-ai" id="jr-go-pro" style="margin-top:8px">${esc(_t("Оформить CANDEL Pro"))}</button>` : ""}`; const g = $("#jr-go-pro"); if (g) g.addEventListener("click", () => window.Pro.open()); return; }
     const s = stats(filtered());
     const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
     const ctx = {
@@ -1746,7 +1746,7 @@
         body: JSON.stringify({ kind: "journal", question: "Review my trading journal", ctx, lang: I18.lang }),
       });
       const d = await r.json().catch(() => ({}));
-      if (r.status === 402) throw new Error(_t("ИИ-разбор торговли доступен в McQ Pro."));
+      if (r.status === 402) throw new Error(_t("ИИ-разбор торговли доступен в CANDEL Pro."));
       if (r.status === 429) throw new Error(_t("Лимит вопросов на сегодня исчерпан"));
       if (!r.ok || !d.answer) throw new Error(d.error || `${r.status}`);
       out.innerHTML = `<div class="jr-ai-a">${esc(d.answer).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>")}</div><small class="jr-muted">${esc(_t("Не финансовый совет."))}</small>`;

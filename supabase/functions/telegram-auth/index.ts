@@ -1,4 +1,4 @@
-// McQCryptoNews — вход через Telegram для Supabase Auth.
+// CANDEL — вход через Telegram для Supabase Auth.
 // Принимает либо initData мини-приложения Telegram, либо данные Telegram Login (сайт/PWA),
 // проверяет подпись токеном бота и возвращает одноразовый token_hash; клиент обменивает его на сессию:
 //   supabase.auth.verifyOtp({ token_hash, type: "magiclink" })

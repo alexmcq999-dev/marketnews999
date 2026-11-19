@@ -1,4 +1,4 @@
--- McQ Pro: оплата. Выполнить один раз в Supabase → SQL Editor (после 002).
+-- CANDEL Pro: оплата. Выполнить один раз в Supabase → SQL Editor (после 002).
 -- Платежи пишет только функция billing (service role). Клиент видит лишь свои платежи.
 
 create table if not exists public.payments (

@@ -1,4 +1,4 @@
--- Профили пользователей McQCryptoNews: выполнить один раз в Supabase → SQL Editor
+-- Профили пользователей CANDEL: выполнить один раз в Supabase → SQL Editor
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   provider text,

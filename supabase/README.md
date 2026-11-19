@@ -1,4 +1,4 @@
-# Вход в McQCryptoNews (Telegram и Google через Supabase)
+# Вход в CANDEL (Telegram и Google через Supabase)
 
 Пока переменные `SUPABASE_URL` / `SUPABASE_ANON_KEY` не заданы, вход выключен и приложение работает без него.
 
@@ -25,7 +25,7 @@
 
 ---
 
-# McQ Pro Chart (интеллектуальный чарт + ИИ-ассистент)
+# Pro Chart (интеллектуальный чарт + ИИ-ассистент)
 
 Чарт работает сразу, без настроек: свечи и объёмы берутся из публичных API 9 бирж прямо в приложении.
 Для ИИ-ассистента и будущей подписки:
@@ -39,7 +39,7 @@
    (CLI: `supabase functions deploy chart-ai`, `supabase secrets set LLM_API_KEY=...`)
 10. **Режим доступа** — пока `PREMIUM_MODE` не задан, чарт и ИИ открыты всем (ИИ — только вошедшим, с дневным лимитом).
     Когда запустишь подписку: GitHub → Variables → `PREMIUM_MODE` = `paid` **и** такой же секрет `PREMIUM_MODE=paid` у функции `chart-ai`.
-    Тогда без подписки откроется экран «McQ PRO» с кнопкой «Оформить McQ Pro».
+    Тогда без подписки откроется экран «CANDEL PRO» с кнопкой «Оформить CANDEL Pro».
 11. **Выдать подписку вручную** (Authentication → Users → скопируй id):
     ```sql
     insert into public.subscriptions (user_id, plan, until, source)
@@ -50,7 +50,7 @@
 
 ---
 
-# Оплата McQ Pro: Telegram Stars + USDT
+# Оплата CANDEL Pro: Telegram Stars + USDT
 
 В мини-приложении Telegram — **только Stars** (правило Telegram для цифровых товаров): ежемесячная подписка,
 продлевается сама, отмена — Настройки Telegram → Мои звёзды. В браузере / PWA — **USDT через Crypto Pay** (@CryptoBot),

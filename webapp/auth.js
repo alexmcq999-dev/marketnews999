@@ -1,4 +1,4 @@
-/* McQCryptoNews — вход через Telegram или Google (Supabase Auth).
+/* CANDEL — вход через Telegram или Google (Supabase Auth).
    • В мини-приложении Telegram — вход автоматический по initData, без формы.
    • В браузере и в приложении на телефоне (PWA) — экран входа: Telegram или Google.
    • Без настроек Supabase (APP_CONFIG.supabaseUrl / supabaseKey) вход выключен — приложение работает как раньше. */
@@ -107,8 +107,8 @@
     sheet.innerHTML = `<div class="pf-head"><button class="pf-ava pf-ava-btn" data-pf="avatar" aria-label="${esc(t("Сменить фото"))}" title="${esc(t("Сменить фото"))}">${btn.innerHTML}<em aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></svg></em></button>
         <span class="pf-who"><b>${esc(v.name)}</b><small>${v.username ? "@" + esc(v.username) + " · " : ""}${esc(t("Вход через"))} ${esc(v.provider)}</small></span></div>
       <div class="pf-photo"><button data-pf="avatar">${esc(t(v.custom ? "Сменить фото" : "Загрузить своё фото"))}</button>${v.custom ? `<button data-pf="avatar-del" class="muted">${esc(t("Убрать"))}</button>` : ""}</div>
-      ${sales && AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>McQ PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
-      ${sales ? `<button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка McQ Pro") : t("Оформить McQ Pro"))}</button>` : ""}
+      ${sales && AUTH.plan === "pro" ? `<div class="pf-plan${AUTH.planSource === "trial" ? "" : " gold"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 10H5z" fill="currentColor"/></svg>CANDEL PRO${AUTH.planSource === "trial" ? ` (${esc(t("пробный"))})` : ""}${AUTH.planUntil ? ` · ${esc(t("до"))} ${esc(new Date(AUTH.planUntil).toLocaleDateString(window.I18N && window.I18N.lang ? window.I18N.lang : undefined))}` : ""}</div>` : ""}
+      ${sales ? `<button data-pf="pro" class="pf-pro">${esc(AUTH.plan === "pro" ? t("Моя подписка CANDEL Pro") : t("Оформить CANDEL Pro"))}</button>` : ""}
       <button data-pf="journal">${esc(t("Торговый журнал"))}</button>
       <button data-pf="tour">${esc(t("Как пользоваться"))}</button>
       <button data-pf="refresh">${esc(t("Обновить данные"))}</button>
@@ -219,10 +219,10 @@
     const paid = !!(window.Pro && window.Pro.sales) && AUTH.plan === "pro" && AUTH.planSource !== "trial";
     document.documentElement.classList.toggle("is-pro", paid);
     const b = document.querySelector(".pro-badge");
-    if (b) b.title = paid ? "McQ PRO" : "";
+    if (b) b.title = paid ? "CANDEL PRO" : "";
   }
 
-  // подписка McQ Pro: строка в таблице subscriptions (пишет только сервер/админ, клиент лишь читает свою)
+  // подписка CANDEL Pro: строка в таблице subscriptions (пишет только сервер/админ, клиент лишь читает свою)
   let planReq = null;
   AUTH.plan = "free";
   AUTH.loadPlan = () => {

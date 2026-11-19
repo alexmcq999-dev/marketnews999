@@ -1,4 +1,4 @@
-// McQ Pro — оплата подписки.
+// CANDEL Pro — оплата подписки.
 //  • Внутри Telegram — Telegram Stars (ежемесячная подписка, продлевается сама). Правила Telegram: цифровые
 //    товары в ботах и мини-приложениях — только за Stars, поэтому в мини-приложении другие способы не показываем.
 //  • В браузере / PWA — USDT через Crypto Pay (@CryptoBot), разовый платёж на 30 дней.
@@ -88,7 +88,7 @@ async function telegramUpdate(u: any) {
       ok = !!data?.user;
     }
     await tg("answerPreCheckoutQuery", ok ? { pre_checkout_query_id: q.id, ok: true }
-      : { pre_checkout_query_id: q.id, ok: false, error_message: "Счёт устарел. Открой McQ Pro в приложении и попробуй снова." });
+      : { pre_checkout_query_id: q.id, ok: false, error_message: "Счёт устарел. Открой CANDEL Pro в приложении и попробуй снова." });
     return;
   }
   const m = u.message;
@@ -104,9 +104,9 @@ async function telegramUpdate(u: any) {
     if (error) throw error;
     await tg("sendMessage", {
       chat_id: m.chat.id,
-      text: `✅ McQ Pro ${p.is_recurring && !p.is_first_recurring ? "продлён" : "активирован"} до ${fmtDate(until)}.\n` +
+      text: `✅ CANDEL Pro ${p.is_recurring && !p.is_first_recurring ? "продлён" : "активирован"} до ${fmtDate(until)}.\n` +
         `Подписка продлевается автоматически. Управлять ею: Настройки Telegram → Мои звёзды.`,
-      reply_markup: { inline_keyboard: [[{ text: "Открыть McQCryptoNews", web_app: { url: APP_URL() } }]] },
+      reply_markup: { inline_keyboard: [[{ text: "Открыть CANDEL", web_app: { url: APP_URL() } }]] },
     }).catch(() => null);
     return;
   }
@@ -118,14 +118,14 @@ async function telegramUpdate(u: any) {
   const owner = env("OWNER_CHAT_ID");
   if (text === "/paysupport") {
     await tg("sendMessage", { chat_id: m.chat.id, text: (owner
-      ? "Вопрос по оплате McQ Pro? Напиши его одним сообщением сюда — оно придёт команде, ответим в личные сообщения."
-      : "Вопрос по оплате McQ Pro? Напиши нам: " + (env("SUPPORT_CONTACT") || "в чат поддержки приложения") + ".") +
+      ? "Вопрос по оплате CANDEL Pro? Напиши его одним сообщением сюда — оно придёт команде, ответим в личные сообщения."
+      : "Вопрос по оплате CANDEL Pro? Напиши нам: " + (env("SUPPORT_CONTACT") || "в чат поддержки приложения") + ".") +
       "\nУсловия: " + APP_URL() + "privacy.html" }).catch(() => null);
   } else if (text === "/terms") {
     await tg("sendMessage", { chat_id: m.chat.id, text: "Условия и политика конфиденциальности: " + APP_URL() + "privacy.html" }).catch(() => null);
   } else if (text === "/start" && m.chat.type === "private") {
     await tg("sendMessage", {
-      chat_id: m.chat.id, text: "McQCryptoNews — новости, сигналы, Pro Chart и торговый журнал.",
+      chat_id: m.chat.id, text: "CANDEL — новости, сигналы, Pro Chart и торговый журнал.",
       reply_markup: { inline_keyboard: [[{ text: "Открыть приложение", web_app: { url: APP_URL() } }]] },
     }).catch(() => null);
   } else if (owner && m.chat.type === "private" && String(m.chat.id) !== owner && !text.startsWith("/")) {
@@ -168,7 +168,7 @@ async function appRequest(req: Request, body: any) {
     await tg("setWebhook", { url, secret_token: await tgSecret(), allowed_updates: ["message", "pre_checkout_query"], max_connections: 20 });
     await tg("setMyCommands", { commands: [
       { command: "start", description: "Открыть приложение" },
-      { command: "paysupport", description: "Помощь с оплатой McQ Pro" },
+      { command: "paysupport", description: "Помощь с оплатой CANDEL Pro" },
       { command: "terms", description: "Условия" },
     ] }).catch(() => null);
     const info = await tg("getWebhookInfo", {});
@@ -204,9 +204,9 @@ async function appRequest(req: Request, body: any) {
   if (action === "stars") {
     if (!BOT()) return json({ error: "stars_off" }, 503);
     const url = await tg("createInvoiceLink", {
-      title: "McQ Pro — 30 дней",
+      title: "CANDEL Pro — 30 дней",
       description: "Pro Chart с объёмами и VWAP по 9 биржам, ИИ-ассистент по графику и ИИ-разбор торгового журнала. Продлевается каждые 30 дней.",
-      payload, currency: "XTR", prices: [{ label: "McQ Pro", amount: PRICE_STARS() }],
+      payload, currency: "XTR", prices: [{ label: "CANDEL Pro", amount: PRICE_STARS() }],
       subscription_period: 2592000,
     });
     return json({ url });
@@ -215,7 +215,7 @@ async function appRequest(req: Request, body: any) {
     if (!env("CRYPTOPAY_TOKEN")) return json({ error: "usdt_off" }, 503);
     const inv = await cryptoPay("createInvoice", {
       currency_type: "crypto", asset: "USDT", amount: PRICE_USDT().toFixed(2),
-      description: "McQ Pro — 30 дней: Pro Chart, ИИ-ассистент, ИИ-разбор журнала",
+      description: "CANDEL Pro — 30 дней: Pro Chart, ИИ-ассистент, ИИ-разбор журнала",
       payload, expires_in: 3600, allow_comments: false, allow_anonymous: false,
       paid_btn_name: "callback", paid_btn_url: APP_URL(),
     });

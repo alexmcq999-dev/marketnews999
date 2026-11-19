@@ -35,14 +35,14 @@ PAGE = """<!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>McQCryptoNews переехал</title>
+<title>CANDEL переехал</title>
 <link rel="canonical" href="{url_attr}">
 {go}
 <style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#fafafa;
 font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:24px}}
 a{{color:#f5c451}}</style>
 </head><body>
-<p>McQCryptoNews переехал на новый адрес.<br><a href="{url_attr}">Открыть {host}</a></p>
+<p>CANDEL переехал на новый адрес.<br><a href="{url_attr}">Открыть {host}</a></p>
 </body></html>
 """
 

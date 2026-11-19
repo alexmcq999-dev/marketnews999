@@ -1,10 +1,10 @@
-/* McQ Pro Chart — интеллектуальный чарт для продвинутых трейдеров.
+/* Pro Chart — интеллектуальный чарт для продвинутых трейдеров.
    • Свечи агрегированы с 9 бирж (11 рынков: спот + бессрочные фьючерсы) прямо из публичных API бирж.
    • В каждой свече — её собственный VWAP (Σ оборот / Σ объём по всем биржам) и разбивка объёма по биржам.
    • Сессионный VWAP с ±1σ/±2σ, якорный VWAP (тап по свече), профиль объёма видимого диапазона (POC/VAH/VAL),
      CVD (по тейкерам Binance, экстраполяция на весь объём), агрегированный открытый интерес, фандинг.
    • ИИ-ассистент (функция Supabase chart-ai) читает всё это и рисует уровни на графике.
-   Доступ: APP_CONFIG.premium = "open" (всем) или "paid" (только подписка McQ Pro). */
+   Доступ: APP_CONFIG.premium = "open" (всем) или "paid" (только подписка CANDEL Pro). */
 (function () {
   "use strict";
   const I18 = window.I18N || { t: (s) => s, lang: "ru", locale: "ru-RU" };
@@ -19,7 +19,7 @@
   const ASSETS = ["BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "SUI", "HYPE", "LINK", "AVAX"];
   const TFS = [["5m", 300, "5м"], ["15m", 900, "15м"], ["1h", 3600, "1ч"], ["4h", 14400, "4ч"], ["1d", 86400, "1Д"]];
   const LIMIT = 300;
-  const C = { up: "#3ddc84", down: "#ff5a52", gold: "#C8B08A", text: "rgba(250,250,250,.62)", hair: "rgba(255,255,255,.06)" };
+  const C = { up: "#3ddc84", down: "#ff5a52", gold: "#C6AE83", text: "rgba(250,250,250,.62)", hair: "rgba(255,255,255,.06)" };
 
   // ================================================================ биржи
   const typ = (h, l, c) => (h + l + c) / 3;
@@ -393,7 +393,7 @@
     el.innerHTML = `
       <div class="pc-top">
         <button class="pc-x" data-act="close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
-        <div class="pc-title"><b>McQ Pro Chart</b><span class="pc-pro">PRO</span></div>
+        <div class="pc-title"><b>Pro Chart</b><span class="pc-pro">PRO</span></div>
         <div class="pc-src" id="pc-src"></div>
         <button class="pc-x pc-fs-btn" data-act="fs" aria-label="${esc(_t("На весь экран"))}" title="${esc(_t("На весь экран"))}"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
@@ -416,7 +416,7 @@
       <button class="pc-ai-fab" data-act="ai"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3l1.8 4.9L19 9.7l-4.3 3 1.4 5.3L12 15l-4.1 3 1.4-5.3L5 9.7l5.2-1.8z" fill="currentColor"/></svg><span>${esc(_t("ИИ-ассистент"))}</span></button>
       <div class="pc-ai" id="pc-ai" hidden>
         <div class="pc-ai-grab" data-act="ai-close"></div>
-        <div class="pc-ai-head"><b>McQ AI</b><small id="pc-ai-sub"></small><button class="pc-x sm" data-act="ai-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
+        <div class="pc-ai-head"><b>CANDEL AI</b><small id="pc-ai-sub"></small><button class="pc-x sm" data-act="ai-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
         <div class="pc-ai-body" id="pc-ai-body"></div>
         <div class="pc-ai-quick" id="pc-ai-quick"></div>
         <form class="pc-ai-input" id="pc-ai-form"><input id="pc-ai-q" maxlength="400" autocomplete="off" placeholder="${esc(_t("Спроси про этот график…"))}"><button type="submit" aria-label="${esc(_t("Отправить"))}"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12l16-8-6 16-2.5-6.5z" fill="currentColor"/></svg></button></form>
@@ -1137,7 +1137,7 @@
     const el = $("#pc-pay");
     const A = window.AUTH;
     el.innerHTML = `<div class="pay-card glass">
-        <div class="pay-badge">McQ PRO</div>
+        <div class="pay-badge">CANDEL PRO</div>
         <h3>${esc(_t("Интеллектуальный чарт для профи"))}</h3>
         <ul>
           <li>${esc(_t("Свечи и объём с 9 крупнейших бирж: спот + фьючерсы"))}</li>
@@ -1145,7 +1145,7 @@
           <li>${esc(_t("Профиль объёма, CVD, открытый интерес, фандинг"))}</li>
           <li>${esc(_t("ИИ-ассистент: разбор графика, уровни и план сделки"))}</li>
         </ul>
-        <button class="pay-cta" data-pay="join">${esc(window.Pro && window.Pro.available() ? _t("Оформить McQ Pro") : _t("Хочу McQ Pro"))}</button>
+        <button class="pay-cta" data-pay="join">${esc(window.Pro && window.Pro.available() ? _t("Оформить CANDEL Pro") : _t("Хочу CANDEL Pro"))}</button>
         <button class="pay-back" data-pay="back">${esc(_t("Назад"))}</button>
         <small>${esc(window.Pro && window.Pro.available() ? _t("Первые 3 дня бесплатно, без оплаты. Потом — $29.9 в месяц.") : _t("Подписка скоро. Оставь заявку — откроем доступ первым."))}</small>
       </div>`;
