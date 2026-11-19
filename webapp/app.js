@@ -371,9 +371,7 @@
     const done = (d.calendar || []).filter((e) => e.result && e.impact === "High" && new Date(e.ts) < Date.now())
       .sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 3);
     if (done.length) {
-      h += `<div class="section-title">${_t("Итоги событий")}</div><div class="glass list">`;
-      h += done.map((e) => `<div class="ev past-res"><span class="time">${fmtTime(e.ts)}</span><span class="title">${FLAGS[e.country] || ""} ${esc(e.title)}${e.actual ? ` — <b>${esc(e.actual)}</b>${e.forecast ? ` <small>${_t("(прогноз")} ${esc(e.forecast)})</small>` : ""}` : ""}</span>${resultBlock(e)}</div>`).join("");
-      h += `</div>`;
+      h += `<div class="section-title">${_t("Итоги событий")}</div><div class="ce-day ov-res">${done.map((e) => calRow(e, false)).join("")}</div>`;
     }
 
     $("#ov-main").innerHTML = h || `<div class="glass card empty">${_t("Нет данных")}</div>`;
@@ -597,6 +595,22 @@
   function numCell(label, val, cls) {
     return `<span class="ce-n ${cls || ""}"><small>${label}</small><b>${val ? esc(val) : "—"}</b></span>`;
   }
+  function calRow(e, isNext) {
+    const now = Date.now();
+    const past = new Date(e.ts) < now;
+    const r = e.result || {};
+    const act = e.actual || r.actual || "";
+    const hasNums = act || e.forecast || e.previous;
+    const vs = r.vs_forecast === "above" ? "↑" : r.vs_forecast === "below" ? "↓" : "";
+    return `<div class="ce ${past ? "past" : ""} ${act || e.result ? "done" : ""} ${isNext ? "next" : ""}">
+      <span class="ce-t">${fmtTime(e.ts)}</span>
+      <div class="ce-main">
+        <div class="ce-title"><i class="ce-imp ${e.impact === "High" ? "high" : ""}" title="${e.impact === "High" ? _t("высокая важность") : _t("средняя важность")}"></i><span>${FLAGS[e.country] || ""} ${esc(e.title)}</span>${isNext ? `<em class="ce-next">${_t("далее")}</em>` : ""}</div>
+      </div>
+      ${hasNums ? `<div class="ce-nums">${numCell(_t("Факт"), act ? act + (vs ? " " + vs : "") : "", act ? "act" : "")}${numCell(_t("Прогноз"), e.forecast)}${numCell(_t("Было"), e.previous)}</div>` : `<div class="ce-nums"></div>`}
+      ${e.result ? `<div class="ce-body">${resultBlock(e)}</div>` : ""}
+    </div>`;
+  }
   function renderCalendar() {
     const all = state.data.calendar || [];
     const ev = state.mode === "simple" ? all.filter((e) => e.impact === "High") : all;
@@ -614,21 +628,7 @@
     for (const d of days) {
       const high = d.items.filter((x) => x.e.impact === "High").length;
       h += `<div class="day-title"><b>${d.today ? _t("Сегодня") : esc(d.k)}</b><span>${high ? `${high} ${_t("важн.")}` : ""}</span></div><div class="ce-day">`;
-      for (const { e, i } of d.items) {
-        const past = new Date(e.ts) < now;
-        const r = e.result || {};
-        const act = e.actual || r.actual || "";
-        const hasNums = act || e.forecast || e.previous;
-        const vs = r.vs_forecast === "above" ? "↑" : r.vs_forecast === "below" ? "↓" : "";
-        h += `<div class="ce ${past ? "past" : ""} ${act || e.result ? "done" : ""} ${i === nextIdx ? "next" : ""}">
-          <span class="ce-t">${fmtTime(e.ts)}</span>
-          <div class="ce-main">
-            <div class="ce-title"><i class="ce-imp ${e.impact === "High" ? "high" : ""}" title="${e.impact === "High" ? _t("высокая важность") : _t("средняя важность")}"></i><span>${FLAGS[e.country] || ""} ${esc(e.title)}</span>${i === nextIdx ? `<em class="ce-next">${_t("далее")}</em>` : ""}</div>
-          </div>
-          ${hasNums ? `<div class="ce-nums">${numCell(_t("Факт"), act ? act + (vs ? " " + vs : "") : "", act ? "act" : "")}${numCell(_t("Прогноз"), e.forecast)}${numCell(_t("Было"), e.previous)}</div>` : `<div class="ce-nums"></div>`}
-          ${e.result ? `<div class="ce-body">${resultBlock(e)}</div>` : ""}
-        </div>`;
-      }
+      for (const { e, i } of d.items) h += calRow(e, i === nextIdx);
       h += `</div>`;
     }
     h += `<p class="hint">${_t("Время московское. Календарь — ForexFactory, факт — официальные данные (календарь TradingView). Реакция рынка — измеренное изменение цены за 60 минут после события.")}</p>`;
