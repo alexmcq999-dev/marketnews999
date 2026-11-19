@@ -679,7 +679,7 @@ button.st:hover, .mk:hover { background: #151517; }
 .jr-exs button em { font-style: normal; color: var(--text-3); font-size: 18px; line-height: 1; }
 .jr-ex-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font: 700 11px Inter, system-ui, sans-serif; font-style: normal;
   letter-spacing: .02em; color: var(--text); background: #1C1C1F; box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
-.jr-exs.sm .jr-ex-ic, .jr-exs.sm button em { display: none; }
+.jr-exs.sm button em { display: none; }
 .jr-safe { list-style: none; margin: 8px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); gap: 8px; font-size: 12.5px; color: var(--text-m); }
 .jr-safe li { position: relative; padding-left: 22px; line-height: 1.45; }
 .jr-safe li::before { content: ""; position: absolute; left: 0; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: rgba(63,182,139,.14);
@@ -781,3 +781,13 @@ button.st:hover, .mk:hover { background: #151517; }
   .onb-opt b { font-size: 15.5px; }
   .onb-ic { width: 38px; height: 38px; border-radius: 11px; }
 }
+
+/* логотипы бирж */
+.jr-ex-ic { position: relative; overflow: hidden; }
+.jr-ex-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: #1C1C1F; }
+.jr-ex-ic > span { position: relative; }
+.jr-ex-ic:not(.mono) > span { visibility: hidden; }
+.jr-ex-ic.sm { width: 24px; height: 24px; border-radius: 7px; font-size: 9px; }
+.jr-sh-h .jr-ex-ic { margin-right: 10px; }
+.jr-sh-h { align-items: center; }
+.jr-sh-h b { flex: 1; }

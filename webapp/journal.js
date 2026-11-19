@@ -1649,12 +1649,20 @@
     renderTrades();
   }
 
+  // логотипы бирж — официальные иконки сайтов бирж (через сервис значков); не загрузились — показываем буквы
+  const EX_LOGO = { binance: ["binance.com", "BN"], bybit: ["bybit.com", "BY"], okx: ["okx.com", "OKX"], bingx: ["bingx.com", "BX"], bitunix: ["bitunix.com", "BU"], hyperliquid: ["hyperliquid.xyz", "HL"] };
+  function exLogo(k, cls) {
+    const [dom, mono] = EX_LOGO[k] || ["", (EX[k] ? EX[k].name : k).slice(0, 2).toUpperCase()];
+    const img = dom ? `<img src="https://www.google.com/s2/favicons?domain=${dom}&sz=128" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='https://icons.duckduckgo.com/ip3/${dom}.ico';this.addEventListener('error',()=>{this.parentNode.classList.add('mono');this.remove();},{once:true})">` : "";
+    return `<i class="jr-ex-ic ${cls || ""} ${dom ? "" : "mono"}" aria-hidden="true"><span>${esc(mono)}</span>${img}</i>`;
+  }
+
   function onboarding() {
     return `<div class="jr-onb">
       <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C8B08A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h2>${esc(_t("Твой торговый журнал"))}</h2>
       <p>${esc(_t("Подключи биржу — журнал сам соберёт все закрытые позиции и покажет, где ты зарабатываешь, а где теряешь: win rate, profit factor, просадку, лучшие монеты и часы, ошибки вроде отыгрыша."))}</p>
-      <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}"><i class="jr-ex-ic" aria-hidden="true">${esc(({ binance: "BN", bybit: "BY", okx: "OKX", bingx: "BX", bitunix: "BU", hyperliquid: "HL" })[k] || EX[k].name.slice(0, 2).toUpperCase())}</i><span><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></span><em aria-hidden="true">›</em></button>`).join("")}</div>
+      <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}">${exLogo(k)}<span><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></span><em aria-hidden="true">›</em></button>`).join("")}</div>
       <ul class="jr-safe">
         <li>${esc(_t("Ключи хранятся только на этом устройстве, зашифрованными. Мы их не видим."))}</li>
         <li>${esc(_t("Нужен ключ только с правом чтения: с ним нельзя торговать и выводить средства."))}</li>
@@ -1671,7 +1679,7 @@
       const E = EX[ex];
       const labels = { key: "API Key", secret: "Secret Key", passphrase: "Passphrase", address: _t("Адрес кошелька 0x…") };
       sh.innerHTML = `<div class="jr-sheet-in glass">
-        <div class="jr-sh-h"><b>${esc(E.name)}</b><button class="pc-x sm" data-j="sheet-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
+        <div class="jr-sh-h">${exLogo(ex, "sm")}<b>${esc(E.name)}</b><button class="pc-x sm" data-j="sheet-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
         <ol class="jr-help">${E.help.map((x) => `<li>${esc(_t(x))}</li>`).join("")}</ol>
         <form id="jr-form" autocomplete="off">${E.fields.map((f) => `<label><span>${esc(labels[f])}</span><input id="jr-f-${f}" name="${f}" ${f === "address" || f === "key" ? 'type="text"' : 'type="password"'} autocomplete="off" autocapitalize="off" spellcheck="false" required></label>`).join("")}
           <p class="jr-err" id="jr-err"></p>
@@ -1699,7 +1707,7 @@
         <div class="jr-sh-h"><b>${esc(_t("Подключения"))}</b><button class="pc-x sm" data-j="sheet-close" aria-label="${esc(_t("Закрыть"))}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>
         ${S.conns.length ? S.conns.map((c) => `<div class="jr-conn"><span><b>${esc(c.label)}</b><small>${c.count != null ? `${c.count} ${esc(_t("позиций"))} · ` : ""}${c.lastSync ? fmtDate(c.lastSync) : esc(_t("не загружено"))}${c.warnTrade ? " · ⚠ " + esc(_t("ключ с правом торговли")) : ""}</small></span><button data-j="remove" data-v="${esc(c.id)}">${esc(_t("Удалить"))}</button></div>`).join("") : `<p class="jr-muted">${esc(_t("Пока нет подключений."))}</p>`}
         <div class="jr-h">${esc(_t("Добавить биржу"))}</div>
-        <div class="jr-exs sm">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}"><b>${esc(EX[k].name)}</b></button>`).join("")}</div>
+        <div class="jr-exs sm">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}">${exLogo(k, "sm")}<span><b>${esc(EX[k].name)}</b></span></button>`).join("")}</div>
         <small class="jr-note-s">${esc(_t("Удаление стирает ключ и сделки с этого устройства. Сам ключ на бирже удали в настройках API биржи."))}</small>
       </div>`;
       sh.hidden = false;
