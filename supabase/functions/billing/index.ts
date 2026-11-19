@@ -31,7 +31,7 @@ const BOT = () => env("PAY_BOT_TOKEN") || env("TELEGRAM_BOT_TOKEN");
 const PRICE_STARS = () => Math.round(Number(env("PRO_PRICE_STARS", "1500"))) || 1500;
 const PRICE_USDT = () => Number(env("PRO_PRICE_USDT", "29.9")) || 29.9;
 const TRIAL_DAYS = () => Math.max(0, Math.round(Number(env("PRO_TRIAL_DAYS", "3"))));
-const APP_URL = () => env("APP_URL", "https://mcqcryptonews.pages.dev/");
+const APP_URL = () => env("APP_URL", "https://candel.pages.dev/");
 const CP_HOST = () => (env("CRYPTOPAY_TESTNET") === "1" ? "https://testnet-pay.crypt.bot" : "https://pay.crypt.bot");
 const DAYS = 30;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

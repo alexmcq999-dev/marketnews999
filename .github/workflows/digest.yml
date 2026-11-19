@@ -42,7 +42,11 @@ jobs:
         env:
           # Cloudflare Pages включается, когда заданы секреты CLOUDFLARE_API_TOKEN и CLOUDFLARE_ACCOUNT_ID
           CF_ON: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
-          CF_PROJECT: ${{ vars.CF_PAGES_PROJECT || 'mcqcryptonews' }}
+          CF_PROJECT: ${{ vars.CF_PAGES_PROJECT || 'candel' }}
+          # прежний проект Cloudflare Pages: после переезда на нём остаётся переадресация на новый адрес
+          CF_OLD_PROJECT: ${{ vars.CF_OLD_PAGES_PROJECT || 'mcqcryptonews' }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CUSTOM_URL: ${{ vars.WEBAPP_URL }}
           TG_URL: ${{ vars.TG_WEBAPP_URL }}
         run: |
@@ -51,8 +55,21 @@ jobs:
           echo "WEBAPP_URL_OLD=$gh_url" >> "$GITHUB_ENV"
           echo "CF_ON=$CF_ON" >> "$GITHUB_ENV"
           echo "CF_PROJECT=$CF_PROJECT" >> "$GITHUB_ENV"
+          echo "CF_OLD_PROJECT=$CF_OLD_PROJECT" >> "$GITHUB_ENV"
+          cf_host="${CF_PROJECT}.pages.dev"
+          if [ "$CF_ON" = "true" ]; then
+            # проект создаём заранее и берём его настоящий адрес: если имя занято, Cloudflare добавит к нему хвост
+            list="$(npx --yes wrangler@4 pages project list 2>/dev/null || true)"
+            if ! echo "$list" | grep -qw "$CF_PROJECT"; then
+              npx --yes wrangler@4 pages project create "$CF_PROJECT" --production-branch=main || true
+              list="$(npx --yes wrangler@4 pages project list 2>/dev/null || true)"
+            fi
+            found="$(echo "$list" | grep -w "$CF_PROJECT" | grep -o "${CF_PROJECT}[a-z0-9-]*\.pages\.dev" | head -1)"
+            [ -n "$found" ] && cf_host="$found"
+            echo "Проект Cloudflare Pages: $CF_PROJECT → https://$cf_host/"
+          fi
           if [ -n "$CUSTOM_URL" ]; then url="${CUSTOM_URL%/}/"
-          elif [ "$CF_ON" = "true" ]; then url="https://${CF_PROJECT}.pages.dev/"
+          elif [ "$CF_ON" = "true" ]; then url="https://${cf_host}/"
           else url="$gh_url"; fi
           echo "WEBAPP_URL=$url" >> "$GITHUB_ENV"
           echo "Адрес приложения: $url"
@@ -100,9 +117,22 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx --yes wrangler@4 pages project list 2>/dev/null | grep -qw "$CF_PROJECT" \
-            || npx --yes wrangler@4 pages project create "$CF_PROJECT" --production-branch=main
           npx --yes wrangler@4 pages deploy site --project-name="$CF_PROJECT" --branch=main --commit-dirty=true
+
+      # Прежний адрес на Cloudflare (mcqcryptonews.pages.dev) → переадресация на новый, путь и #hash сохраняются
+      - name: Old Cloudflare address → redirect
+        if: env.CF_ON == 'true' && env.CF_OLD_PROJECT != env.CF_PROJECT
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if npx --yes wrangler@4 pages project list 2>/dev/null | grep -qw "$CF_OLD_PROJECT"; then
+            python tools/redirect_site.py site cfold "$WEBAPP_URL" "/"
+            npx --yes wrangler@4 pages deploy cfold --project-name="$CF_OLD_PROJECT" --branch=main --commit-dirty=true
+          else
+            echo "Прежнего проекта $CF_OLD_PROJECT нет — переадресация не нужна"
+          fi
 
       # GitHub Pages: до переезда — само приложение, после — переадресация на новый адрес (+ data/ для внешних скриптов)
       - name: Old address → redirect

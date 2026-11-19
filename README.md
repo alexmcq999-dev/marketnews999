@@ -14,7 +14,7 @@
 - новости — вместе с дайджестом, в 08:00 и 16:00 МСК.
 
 Приложение — это статический сайт (папка `webapp/`), его собирает тот же workflow и публикует на **Cloudflare Pages**
-(`https://mcqcryptonews.pages.dev/`). Пока секреты Cloudflare не заданы — на GitHub Pages, как раньше.
+(`https://candel.pages.dev/`). Пока секреты Cloudflare не заданы — на GitHub Pages, как раньше.
 
 Как включить:
 1. Сделай репозиторий публичным: **Settings → General → Danger Zone → Change visibility → Public**. Токены и ключи в Secrets при этом остаются скрытыми.
@@ -28,7 +28,7 @@
 1. dash.cloudflare.com → зарегистрируйся / войди. Справа на главной (Account home) скопируй **Account ID**.
 2. My Profile → API Tokens → Create Token → Custom token: Permissions **Account · Cloudflare Pages · Edit** → Create → скопируй токен.
 3. GitHub → Settings → Secrets and variables → Actions → **Secrets**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
-   Необязательно, **Variables**: `CF_PAGES_PROJECT` (имя проекта, по умолчанию `mcqcryptonews` → `mcqcryptonews.pages.dev`),
+   Необязательно, **Variables**: `CF_PAGES_PROJECT` (имя проекта, по умолчанию `candel` → `candel.pages.dev`),
    `WEBAPP_URL` (свой домен, если подключишь его в Cloudflare).
 4. Actions → Market digest → Run workflow (digest). Проект в Cloudflare создастся сам.
 5. Новый адрес прописать: Supabase → Authentication → URL Configuration (Site URL + Redirect URLs),

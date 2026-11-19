@@ -1,6 +1,6 @@
 """Старый адрес (GitHub Pages) после переезда на Cloudflare Pages.
 
-python tools/redirect_site.py site ghp https://mcqcryptonews.pages.dev/ /marketnews999/
+python tools/redirect_site.py site ghp https://candel.pages.dev/ /marketnews999/
 
 • Внутри Telegram мини-приложение остаётся на старом адресе: Telegram связывает мини-приложение с адресом,
   с которого его открыли (кнопки в старых сообщениях, меню), и после перехода на другой домен часть клиентов

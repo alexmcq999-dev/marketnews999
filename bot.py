@@ -912,6 +912,10 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
                "premium": "paid" if (os.getenv("PREMIUM_MODE") or "").strip().lower() == "paid" else "open",
                    "appUrl": (os.getenv("WEBAPP_URL") or "").strip()}
             html = html.replace("<!--APP_CONFIG-->", f"<script>window.APP_CONFIG={json.dumps(cfg)}</script>")
+            # ссылки для превью (og:url, og:image) — на текущий адрес приложения
+            app_url = (os.getenv("WEBAPP_URL") or "").strip()
+            if app_url.startswith("https://"):
+                html = html.replace("https://candel.pages.dev/", app_url.rstrip("/") + "/")
             with open(idx, "w", encoding="utf-8") as f:
                 f.write(html)
     os.makedirs(os.path.join(out_dir, "data"), exist_ok=True)
