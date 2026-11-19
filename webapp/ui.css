@@ -487,3 +487,55 @@ html.pc-fs .tabbar { display: none; }
 .pb-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--text-m); }
 .pb-row b { font-weight: 600; } .pb-row b.up { color: var(--up); } .pb-row b.down { color: var(--down); }
 .pb-src { font-size: 10.5px; color: var(--text-3); }
+
+/* ---------------------------------------------------------------- журнал: окна (виджеты, подключения) — компактные */
+.jr-sheet { padding: 0; }
+.jr-sheet-in, .jr-sheet-in.glass { background: #141416 !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 30px 60px -24px #000; max-height: 82%; }
+@media (min-width: 640px) {
+  .jr-sheet { align-items: center; justify-content: center; padding: 24px; }
+  .jr-sheet-in, .jr-sheet-in.glass { width: min(440px, 100%); max-height: min(78vh, 680px); border-radius: 18px; padding: 16px 18px 18px; transform: translateY(8px) scale(.98); transition: transform .2s var(--ease); }
+  .jr-sheet.show .jr-sheet-in { transform: none; }
+}
+.wg-cfg { max-height: none; flex: 1; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+.wg-cfg-r { padding: 6px 2px; font-size: 13.5px; }
+.wg-cfg-r button { width: 28px; height: 28px; }
+.wg-cfg-r button.tg { width: 40px; height: 24px; }
+.wg-cfg-r button.tg::after { top: 3px; left: 3px; width: 18px; height: 18px; }
+.wg-cfg-r button.tg.on::after { transform: translateX(16px); }
+.wg-cfg-g { padding: 12px 2px 4px; }
+
+/* ---------------------------------------------------------------- журнал: календарь под любой экран */
+.jr-cal-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.jr-cal { width: 100%; max-width: 620px; box-sizing: border-box; }
+.jr-cal-side { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.jr-cal-side .section-title { margin: 6px 0 0 !important; font-size: 17px !important; }
+.jr-cal-side .hint { margin: 4px 0 0; }
+.jr-cal-c { aspect-ratio: auto; height: clamp(40px, 6.4vh, 60px); }
+.jr-cal-c.wk { height: clamp(40px, 6.4vh, 60px); }
+@media (min-width: 560px) { .jr-cal-c, .jr-cal-c.wk { height: clamp(46px, 7vh, 64px); aspect-ratio: auto; } }
+@media (min-width: 1024px) {
+  .jr-cal-layout { grid-template-columns: minmax(0, 620px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .jr-cal-side { padding-top: 2px; }
+}
+
+/* ---------------------------------------------------------------- календарь событий: итог — решение / факт */
+.ev.has-res .nums { display: none; }
+.res { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px 14px; }
+.res-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.res-head span { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.res-head b { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+.res-head b.up { color: var(--up); } .res-head b.down { color: var(--down); }
+.res-head em { font-style: normal; font-size: 12.5px; color: var(--text-m); }
+.res-sum { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.res-imp { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-m); }
+.res-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.res-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
+
+/* ---------------------------------------------------------------- графики: свой актив */
+.chip-add { color: var(--gold) !important; }
+.chip-x { padding: 7px 10px !important; margin-left: -4px; color: var(--text-m) !important; }
+.chip-in { display: inline-flex; flex-direction: column; gap: 4px; flex: 1 1 220px; max-width: 360px; }
+.chip-in input { height: 34px; box-sizing: border-box; border: 0; outline: 0; border-radius: 9px; padding: 0 12px; background: var(--surface-2); color: var(--text);
+  font: 600 13px var(--font); box-shadow: inset 0 0 0 1px rgba(200,176,138,.45); text-transform: uppercase; }
+.chip-in small { font-size: 11px; line-height: 1.4; color: var(--text-3); }
+#chart-assets { flex-wrap: wrap; align-items: flex-start; }

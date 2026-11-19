@@ -61,7 +61,11 @@
     "data/signals.json",
   ];
   const EXIT = { sl: _t("стоп"), tp2: "TP2", be: _t("б/у после TP1"), trail: _t("трейлинг"), timeout: _t("по времени") };
-  const tvSymbol = (a) => TV[a] || `BINANCE:${String(a).toUpperCase()}USDT`;
+  // свой актив: «SOL» → крипта на Binance, «NASDAQ:AAPL» / «FX:EURUSD» — как есть (биржа:тикер TradingView)
+  const tvSymbol = (a) => { const x = String(a).toUpperCase(); return TV[a] || (x.includes(":") ? x : x.endsWith("USDT") ? `BINANCE:${x}` : `BINANCE:${x}USDT`); };
+  const LS_CUSTOM = "amq-chart-custom";
+  const customAssets = () => { try { const v = JSON.parse(localStorage.getItem(LS_CUSTOM) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 12) : []; } catch (e) { return []; } };
+  const saveCustom = (list) => { try { localStorage.setItem(LS_CUSTOM, JSON.stringify(list.slice(0, 12))); } catch (e) { /* noop */ } };
 
   // ---------------------------------------------------------------- утилиты
   function esc(s) {
@@ -568,10 +572,15 @@
     const chips = [];
     if (r.vs_forecast && VS[r.vs_forecast]) chips.push(`<span class="res-chip ${VS[r.vs_forecast][1]}">${VS[r.vs_forecast][0]}</span>`);
     if (r.tone && TONE[r.tone]) chips.push(`<span class="res-chip ${TONE[r.tone][1]}">${TONE[r.tone][0]}</span>`);
-    if (loc(r.decision)) chips.push(`<span class="res-chip">${esc(loc(r.decision))}</span>`);
+    if (r.actual_src === "tradingview") chips.push(`<span class="res-chip">${_t("официальные данные")}</span>`);
     const rx = (r.reaction || []).map(rxChip).join("");
     const src = (r.sources || [])[0];
+    const vsCls = r.vs_forecast === "above" ? "up" : r.vs_forecast === "below" ? "down" : "";
+    const head = loc(r.decision)
+      ? `<div class="res-head"><span>${_t("Решение")}</span><b>${esc(loc(r.decision))}</b></div>`
+      : (e.actual || r.actual) ? `<div class="res-head"><span>${_t("Факт")}</span><b class="${vsCls}">${esc(e.actual || r.actual)}</b>${e.forecast ? `<em>${_t("прогноз")} ${esc(e.forecast)}</em>` : ""}${e.previous ? `<em>${_t("было")} ${esc(e.previous)}</em>` : ""}</div>` : "";
     return `<div class="res">
+      ${head}
       ${chips.length ? `<div class="res-chips">${chips.join("")}</div>` : ""}
       ${loc(r.summary) ? `<p class="res-sum">${esc(loc(r.summary))}</p>` : ""}
       ${rx ? `<div class="rx-row"><span class="rx-l">${r.reaction_full ? _t("Реакция за час") : _t("Реакция (идёт час)")}</span>${rx}</div>` : ""}
@@ -665,16 +674,47 @@
 
   // ---------------------------------------------------------------- графики
   function renderChartControls() {
-    const order = CHART_ORDER.includes(state.asset) ? CHART_ORDER : [state.asset, ...CHART_ORDER];
-    $("#chart-assets").innerHTML = order.map((a) => `<button class="chip glass ${a === state.asset ? "active" : ""}" data-a="${esc(a)}" role="tab" aria-selected="${a === state.asset}">${esc(a)}</button>`).join("");
+    const custom = customAssets();
+    const base = [...CHART_ORDER, ...custom.filter((c) => !CHART_ORDER.includes(c))];
+    const order = base.includes(state.asset) ? base : [...base, state.asset];
+    $("#chart-assets").innerHTML = order.map((a) => `<button class="chip glass ${a === state.asset ? "active" : ""}" data-a="${esc(a)}" role="tab" aria-selected="${a === state.asset}">${esc(a)}</button>`
+      + (custom.includes(a) && a === state.asset ? `<button class="chip glass chip-x" data-rm="${esc(a)}" aria-label="${esc(_t("Убрать актив"))} ${esc(a)}">×</button>` : "")).join("")
+      + `<button class="chip glass chip-add" id="chart-add" aria-label="${esc(_t("Добавить актив"))}">+ ${esc(_t("Актив"))}</button>`;
+    { const add = $("#chart-add"); if (add) add.addEventListener("click", () => addAssetInput(add)); }
+    document.querySelectorAll("#chart-assets [data-rm]").forEach((b) => b.addEventListener("click", () => {
+      saveCustom(customAssets().filter((x) => x !== b.dataset.rm)); state.asset = "BTC"; haptic(); renderChartControls(); renderChart();
+    }));
     const seg = $("#chart-interval");
     const idx = Math.max(0, INTERVALS.findIndex(([v]) => v === state.interval));
     seg.style.setProperty("--n", INTERVALS.length);
     seg.style.setProperty("--i", idx);
     seg.innerHTML = `<span class="thumb-glass" aria-hidden="true"></span>` + INTERVALS.map(([v, l]) => `<button class="${v === state.interval ? "active" : ""}" data-i="${v}" role="radio" aria-checked="${v === state.interval}">${l}</button>`).join("");
-    document.querySelectorAll("#chart-assets .chip").forEach((b) => b.addEventListener("click", () => { state.asset = b.dataset.a; haptic(); renderChartControls(); renderChart(); }));
+    document.querySelectorAll("#chart-assets .chip[data-a]").forEach((b) => b.addEventListener("click", () => { state.asset = b.dataset.a; haptic(); renderChartControls(); renderChart(); }));
     renderLiq();
     document.querySelectorAll("#chart-interval button").forEach((b) => b.addEventListener("click", () => { state.interval = b.dataset.i; haptic(); renderChartControls(); renderChart(); }));
+  }
+
+  // свой актив: поле прямо в ряду чипов (window.prompt в Telegram работает не везде)
+  function addAssetInput(btn) {
+    const wrap = document.createElement("span");
+    wrap.className = "chip-in";
+    wrap.innerHTML = `<input maxlength="24" autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="go" placeholder="SOL · NASDAQ:AAPL" aria-label="${esc(_t("Тикер актива"))}"><small>${esc(_t("Крипта — тикер (SOL). Акции, валюты и прочее — биржа:тикер (NASDAQ:AAPL, FX:EURUSD)."))}</small>`;
+    btn.replaceWith(wrap);
+    const inp = wrap.querySelector("input");
+    inp.focus();
+    let done = false;
+    const go = () => {
+      if (done) return; done = true;
+      const v = inp.value.trim().toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9:._!-]/g, "");
+      if (v) {
+        const list = customAssets().filter((x) => x !== v);
+        if (!CHART_ORDER.includes(v)) { list.push(v); saveCustom(list.slice(-12)); }
+        state.asset = v;
+        renderChartControls(); renderChart();
+      } else renderChartControls();
+    };
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } if (e.key === "Escape") { inp.value = ""; go(); } });
+    inp.addEventListener("blur", go);
   }
 
   let tvLoading = null;
@@ -720,7 +760,7 @@
       hide_side_toolbar: false,           // базовые инструменты рисования TradingView слева
       hide_legend: true,                  // без плашки с названием актива поверх графика
       hide_top_toolbar: false,
-      allow_symbol_change: false,
+      allow_symbol_change: true,          // поиск любого инструмента прямо в графике
       withdateranges: false,
       save_image: false,
       studies: state.rsi ? ["RSI@tv-basicstudies"] : [],
@@ -1044,7 +1084,7 @@
   // McQ Pro Chart: кнопка во вкладке «Графики»
   const pcBtn = $("#pc-open");
   if (pcBtn) pcBtn.addEventListener("click", () => {
-    const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset);
+    const crypto = !["S&P 500", "Nasdaq", "Gold", "Brent", "DXY", "US10Y", "VIX", "BTC.D"].includes(state.asset) && !String(state.asset).includes(":");
     if (window.ProChart) window.ProChart.open({ symbol: crypto ? state.asset : "BTC" });
   });
   window.McQ = { sig: () => null, mode: () => state.mode, setMode: (m) => setMode(m), data: () => state.data };

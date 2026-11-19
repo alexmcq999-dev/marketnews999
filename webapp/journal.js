@@ -1430,7 +1430,7 @@
         wk = 0; wkN = 0; wkV = 0;
       }
     }
-    let h = `<div class="jr-cal glass">
+    let h = `<div class="jr-cal-layout"><div class="jr-cal glass">
       <div class="jr-cal-h"><button class="pc-x sm" data-j="cal-month" data-v="-1" ${canPrev ? "" : "disabled"} aria-label="${esc(_t("Назад"))}">‹</button>
         <b>${esc(title.charAt(0).toUpperCase() + title.slice(1))}</b>
         <button class="pc-x sm" data-j="cal-month" data-v="1" ${canNext ? "" : "disabled"} aria-label="${esc(_t("Вперёд"))}">›</button></div>
@@ -1442,6 +1442,7 @@
         <div><span>${esc(_t("Лучший"))}</span><b class="up">${best && best[1].pnl > 0 ? (S.calUnit === "pct" ? fmtCal(best[1].pnl, best[1].vol) : fmtUsd(best[1].pnl)) : "—"}</b></div></div>
       <div class="jr-cal-grid">${cells}</div>
     </div>`;
+    h += `<div class="jr-cal-side">`;
     if (S.calDay && byDay.get(S.calDay)) {
       const g = byDay.get(S.calDay);
       const d = new Date(S.calDay + "T12:00:00");
@@ -1451,7 +1452,7 @@
       h += `<p class="hint">${esc(_t("Нажми на день, чтобы увидеть его сделки. В колонке «Нед» — итог недели."))}</p>`;
       S._list = [];
     }
-    h += `<div class="jr-trades" id="jr-trades"></div>`;
+    h += `<div class="jr-trades" id="jr-trades"></div></div></div>`;
     return h;
   }
 
