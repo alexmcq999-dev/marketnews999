@@ -539,3 +539,56 @@ html.pc-fs .tabbar { display: none; }
   font: 600 13px var(--font); box-shadow: inset 0 0 0 1px rgba(200,176,138,.45); text-transform: uppercase; }
 .chip-in small { font-size: 11px; line-height: 1.4; color: var(--text-3); }
 #chart-assets { flex-wrap: wrap; align-items: flex-start; }
+
+/* ================================================================ обзор: минималистичные блоки
+   Каждый смысловой модуль — своя спокойная карточка: графитовый фон, линия 1px, радиус 16.
+   Так данные не сливаются, но остаются лёгкими. */
+:root { --card: #121214; --card-line: rgba(255, 255, 255, .07); }
+.strip { gap: 12px; border: 0; margin-top: 12px; }
+.st, .st-btc, .st:nth-child(3), .st-mk {
+  padding: 18px 20px !important; border: 0 !important; border-radius: 16px;
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line);
+}
+button.st:hover, .mk:hover { background: #151517; }
+.st-mk { gap: 12px 16px; }
+#ov-mood { margin-top: 16px; }
+.brief { padding: 22px 22px 8px; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); }
+.br-title { font-size: 21px; line-height: 1.3; }
+.br-text { font-size: 14.5px; }
+.br-list { margin: 4px -22px 0; padding: 0 22px; }
+.br-row:last-child { border-bottom: 0; }
+.dom, .dom.glass { margin-top: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); border-radius: 16px; }
+.sess-wrap { margin-top: 16px; padding: 22px 22px 18px; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); }
+.sess-h { font-size: 17px; }
+.s-grid { border-top: 0; }
+.sess-wrap .hint { margin-top: 12px; }
+/* «Для продвинутых» и события — тоже карточками */
+[data-mode] #ov-main .section-title { font-size: 17px !important; margin: 28px 0 10px !important; }
+.fng-grid { border: 0; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); overflow: hidden; }
+.rsi-list, .rsi-list.glass { background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); }
+.list, .list.glass { padding: 2px 18px; border: 0; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); }
+.promo, .promo.glass { background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line); }
+#ov-pulse .explain { margin: 12px 4px 0; font-size: 13px; }
+@media (max-width: 1023px) {
+  .st, .st-btc, .st:nth-child(3), .st-mk { padding: 16px !important; }
+  .st-price b { font-size: 40px; }
+  .brief { padding: 18px 16px 6px; }
+  .br-list { margin: 4px -16px 0; padding: 0 16px; }
+  .br-title { font-size: 19px; }
+  .sess-wrap { padding: 18px 16px 14px; }
+}
+@media (min-width: 1024px) {
+  .strip { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr); }
+  .st-price b { font-size: 46px; }
+  .st-v b { font-size: 34px; }
+  #ov-mood, #tab-overview > .dom { margin-top: 16px; }
+  #tab-overview.active { column-gap: 16px; }
+  .br-title { font-size: 25px; line-height: 1.25; max-width: none; }
+  .br-text { font-size: 15px; max-width: none; }
+  .sess-wrap { margin-top: 16px; }
+}
+@media (min-width: 1024px) {
+  #tab-overview.active { align-items: stretch; }
+  #ov-mood { display: flex; } #ov-mood > .brief { flex: 1; }
+  #app-promo, #ov-pulse, #ov-main { align-self: start; }
+}
