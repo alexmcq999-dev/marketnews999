@@ -64,11 +64,57 @@
     if (!box) return;
     box.hidden = false;
     box.querySelector(".login-err").textContent = err || "";
+    document.documentElement.classList.add("wl-on");
     requestAnimationFrame(() => box.classList.add("show"));
+    welcome();
+    if (err) openAuth();
+  }
+  // ---------------- приветственный экран: живой брифинг из данных приложения, вход в окне
+  let wlDone = false;
+  const openAuth = () => { const d = $("#wl-auth"); if (!d) return; d.hidden = false; requestAnimationFrame(() => d.classList.add("show")); const b = d.querySelector(".login-btn"); if (b) b.focus(); };
+  const closeAuth = () => { const d = $("#wl-auth"); if (!d || d.hidden) return; d.classList.remove("show"); setTimeout(() => { d.hidden = true; }, 200); };
+  async function welcome() {
+    if (wlDone) return;
+    wlDone = true;
+    const box = $("#login");
+    box.addEventListener("click", (e) => {
+      const a = e.target.closest("[data-wl]");
+      if (!a) return;
+      const k = a.dataset.wl;
+      if (k === "auth") { e.preventDefault(); openAuth(); }
+      else if (k === "close") closeAuth();
+      else if (k === "top") { e.preventDefault(); box.scrollTo({ top: 0, behavior: "smooth" }); }
+      else if (k === "go") { e.preventDefault(); const el = document.querySelector(a.getAttribute("href")); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAuth(); });
+    const lang = window.I18N ? window.I18N.lang : "ru", loc = window.I18N && window.I18N.locale ? window.I18N.locale : "ru-RU";
+    const esc2 = (x) => String(x == null ? "" : x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const num = (v, d) => Number(v).toLocaleString(loc, { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+    try {
+      const d = await (await fetch(`data/app.json?t=${Date.now()}`, { cache: "no-store" })).json();
+      const upd = d.updated ? new Date(d.updated).toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }) : "";
+      $("#wl-b-upd").textContent = upd ? `${t("обновлено")} ${upd} ${t("МСК")}` : "";
+      const mood = lang === "ru" ? d.mood : ((d.mood_i18n || {})[lang] || (d.mood_i18n || {}).en || d.mood);
+      $("#wl-b-title").textContent = String(mood || "").split(/(?<=[.!?])\s/)[0] || t("Рынок сегодня");
+      const mk = (n) => (d.markets || []).find((x) => x.name === n);
+      const btc = mk("BTC"), spx = mk("S&P 500"), fng = (((d.sentiment || {}).fng || {}).crypto || {});
+      const cell = (l, v, c) => `<div><small>${esc2(l)}</small><b>${esc2(v)}</b>${c != null ? `<em class="${c >= 0 ? "up" : "down"}">${c >= 0 ? "+" : "−"}${Math.abs(c).toFixed(2)}%</em>` : ""}</div>`;
+      $("#wl-b-stats").innerHTML = (btc ? cell("Bitcoin", num(btc.price), btc.chg) : "") + (fng.value != null ? cell(t("Страх и жадность"), String(fng.value)) : "") + (spx ? cell("S&P 500", num(spx.price), spx.chg) : "");
+      const TONE = { hawkish: t("ястребино"), dovish: t("голубино"), neutral: t("нейтрально") };
+      const ev = (d.calendar || []).filter((e) => e.result && e.impact === "High" && new Date(e.ts) < Date.now()).sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 2);
+      $("#wl-b-ev").innerHTML = ev.map((e) => {
+        const r = e.result, act = e.actual || r.actual;
+        const left = act ? `${e.title} · ${act}${e.forecast ? ` / ${e.forecast}` : ""}` : `${e.title}${TONE[r.tone] ? ` · ${TONE[r.tone]}` : ""}`;
+        const rx = (r.reaction || []).find((x) => x.asset === "BTC");
+        const right = rx ? `BTC ${rx.value >= 0 ? "+" : "−"}${Math.abs(rx.value).toFixed(2)}% ${t("за час")}` : "";
+        return `<div class="wl-b-row"><span>${esc2(left)}</span><span>${esc2(right)}</span></div>`;
+      }).join("");
+    } catch (er) { $("#wl-b-title").textContent = t("Рынок сегодня"); }
   }
   function hideLogin() {
     const box = $("#login");
     if (!box || box.hidden) return;
+    document.documentElement.classList.remove("wl-on");
     box.classList.remove("show");
     setTimeout(() => { box.hidden = true; }, 400);
   }

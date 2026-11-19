@@ -872,3 +872,72 @@ html.free-all .profile-btn { box-shadow: none; }
   .top { z-index: 35 !important; }
   .tabbar, .tabbar.glass { z-index: 30 !important; }
 }
+
+/* ================================================================ приветственный экран (до входа) — макет «Шапка сайта» */
+.login { display: block !important; place-items: initial; padding: 0 !important; background: var(--base) !important; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 95; }
+.login[hidden] { display: none !important; }
+html.wl-on, html.wl-on body { overflow: hidden; }
+.wl { min-height: 100%; display: flex; flex-direction: column; color: var(--text); font-family: var(--font); }
+.wl-top { position: sticky; top: 0; z-index: 2; height: 72px; padding: 0 56px; display: flex; align-items: center; gap: 48px; background: rgba(9, 11, 15, .96); box-shadow: inset 0 -1px 0 rgba(255,255,255,.07); }
+.wl-brand { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; flex: none; }
+.wl-nav { display: flex; gap: 30px; font-size: 14px; font-weight: 500; }
+.wl-nav a { color: #A8ADB5; text-decoration: none; }
+.wl-nav a:hover, .wl-nav a:first-child { color: var(--text); }
+.wl-act { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.wl-link { border: 0; background: none; color: #A8ADB5; font: 500 14px var(--font); padding: 10px 14px; cursor: pointer; }
+.wl-link:hover { color: var(--text); }
+.wl-cta { border: 0; cursor: pointer; font: 600 14px var(--font); padding: 10px 18px; border-radius: 10px; background: var(--text); color: #090B0F; }
+.wl-cta.wl-big { font-size: 15px; padding: 14px 22px; border-radius: 12px; }
+.wl-cta:hover { background: #fff; }
+.wl-ghost { font: 500 15px var(--font); padding: 14px 22px; border-radius: 12px; color: var(--text); text-decoration: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.wl-ghost:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+.wl-hero { flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 96px 56px 72px; max-width: 1440px; width: 100%; box-sizing: border-box; margin: 0 auto; }
+.wl-copy { display: flex; flex-direction: column; gap: 28px; }
+.wl-kicker { font-size: 12px; font-weight: 600; letter-spacing: .18em; color: var(--gold); }
+.wl-copy h1 { margin: 0; font-size: clamp(42px, 5vw, 66px); line-height: 1.04; font-weight: 500; letter-spacing: -0.035em; }
+.wl-copy p { margin: 0; max-width: 520px; font-size: 18px; line-height: 1.6; color: #A8ADB5; }
+.wl-btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.wl-brief { border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); padding: 28px; display: flex; flex-direction: column; gap: 20px; font-variant-numeric: tabular-nums; }
+.wl-b-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.wl-b-head b { font-size: 15px; font-weight: 600; }
+.wl-b-head small { font-size: 12px; color: var(--text-m); }
+.wl-b-title { margin: 0; font-size: 22px; line-height: 1.35; font-weight: 500; letter-spacing: -0.01em; }
+.wl-b-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.wl-b-stats:empty { display: none; }
+.wl-b-stats > div { border-radius: 12px; background: #14171C; padding: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wl-b-stats small { font-size: 11.5px; color: var(--text-m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-b-stats b { font-size: 20px; font-weight: 600; }
+.wl-b-stats em { font-style: normal; font-size: 12px; font-weight: 600; }
+.wl-b-stats em.up { color: var(--up); } .wl-b-stats em.down { color: var(--down); }
+.wl-b-ev:empty { display: none; }
+.wl-b-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; font-size: 14px; }
+.wl-b-row + .wl-b-row { box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+.wl-b-row span:last-child { color: #A8ADB5; white-space: nowrap; }
+.wl-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 56px 72px; max-width: 1440px; width: 100%; box-sizing: border-box; margin: 0 auto; }
+.wl-features article { border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); padding: 22px; display: flex; flex-direction: column; gap: 8px; }
+.wl-features b { font-size: 16px; font-weight: 600; }
+.wl-features p { margin: 0; font-size: 14px; line-height: 1.55; color: #A8ADB5; }
+.wl-foot { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 24px 56px 32px; font-size: 12.5px; color: var(--text-m); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+.wl-foot span:first-child { color: var(--text); font-weight: 600; letter-spacing: .08em; }
+.wl-foot a { color: var(--text-m); margin-left: auto; }
+/* окно входа */
+.wl-auth { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; padding: 20px; opacity: 0; transition: opacity .2s ease; }
+.wl-auth.show { opacity: 1; }
+.wl-auth[hidden] { display: none; }
+.wl-auth-bg { position: absolute; inset: 0; background: rgba(5, 6, 8, .72); }
+.wl-auth .login-card { position: relative; width: min(400px, 100%); box-sizing: border-box; padding: 30px 24px 22px; border-radius: 20px; background: #13161A !important; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px -20px rgba(0,0,0,.8) !important; }
+.wl-x { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 0; border-radius: 9px; background: rgba(255,255,255,.06); color: var(--text-2); font-size: 18px; line-height: 1; cursor: pointer; }
+.wl-auth .login-logo { width: 56px; height: 56px; border-radius: 14px; }
+.wl-auth .login-btn { border-radius: 12px; height: 50px; }
+@media (max-width: 1100px) { .wl-nav { display: none; } .wl-features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .wl-top { padding: 0 16px; height: 60px; gap: 12px; padding-top: env(safe-area-inset-top, 0px); }
+  .wl-act { gap: 4px; } .wl-link { padding: 8px 10px; } .wl-top .wl-cta { padding: 9px 12px; font-size: 13px; }
+  .wl-hero { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 40px 16px 40px; }
+  .wl-copy { gap: 20px; } .wl-copy p { font-size: 16px; }
+  .wl-brief { padding: 20px; } .wl-b-title { font-size: 19px; }
+  .wl-features { grid-template-columns: minmax(0, 1fr); padding: 0 16px 40px; gap: 12px; }
+  .wl-foot { padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .wl-foot a { margin-left: 0; }
+}
+@media (max-width: 420px) { .wl-top .wl-cta { display: none; } .wl-b-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

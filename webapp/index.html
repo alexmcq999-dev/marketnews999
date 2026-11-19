@@ -151,16 +151,58 @@
   <div class="profile-sheet glass" id="profile" hidden></div>
 
   <!-- вход: Telegram или Google (только если настроен Supabase) -->
+  <!-- приветственный экран (до входа): как макет «Шапка сайта»; вход — в окне поверх -->
   <div class="login" id="login" hidden>
-    <div class="login-bg" aria-hidden="true"></div>
-    <div class="login-card glass">
+    <div class="wl">
+      <header class="wl-top">
+        <a class="wl-brand" href="#" data-wl="top" aria-label="CANDEL">
+          <svg viewBox="0 0 100 100" width="28" height="28" aria-hidden="true" fill="currentColor"><path d="M46.5 18A38 38 0 0 0 46.5 94Z"/><path d="M53.5 6A38 38 0 0 1 53.5 82Z"/></svg>
+          <svg viewBox="0 -1 627 102" width="99" height="16" aria-hidden="true" fill="currentColor"><path d="M90.07 17.22A51 51 0 1 0 90.07 82.78L70.22 82.78A38 38 0 1 1 70.22 17.22ZM116.07 100L158.72 0L165.42 0L208.07 100L194.48 100L162.07 24L129.66 100ZM232.07 0H244.57V100H232.07ZM299.57 0H312.07V100H299.57ZM232.07 0H248.94L312.07 100H295.19ZM342.07 0H380.07A50 50 0 0 1 380.07 100H342.07ZM354.57 11V89H380.07A37 39 0 0 0 380.07 11ZM460.07 0H472.57V100H460.07ZM460.07 0H530.07V11H460.07ZM460.07 44.5H522.07V55.5H460.07ZM460.07 89H530.07V100H460.07ZM560.07 0H572.57V100H560.07ZM560.07 89H626.07V100H560.07Z"/></svg>
+        </a>
+        <nav class="wl-nav" aria-label="Разделы">
+          <a href="#wl-f-news" data-wl="go">Обзор</a><a href="#wl-f-news" data-wl="go">Новости</a><a href="#wl-f-chart" data-wl="go">Графики</a><a href="#wl-f-cal" data-wl="go">Календарь</a><a href="#wl-f-jr" data-wl="go">Журнал</a><a href="#wl-f-chart" data-wl="go">Pro Chart</a>
+        </nav>
+        <div class="wl-act">
+          <button type="button" class="wl-link" data-wl="auth">Войти</button>
+          <button type="button" class="wl-cta" data-wl="auth">Открыть приложение</button>
+        </div>
+      </header>
+      <section class="wl-hero">
+        <div class="wl-copy">
+          <span class="wl-kicker">MARKET INTELLIGENCE</span>
+          <h1>Ясность<br>в сложном рынке</h1>
+          <p>Новости с влиянием на цену, итоги экономических событий, объём девяти бирж в одном графике и журнал, который показывает, где вы зарабатываете и где теряете.</p>
+          <div class="wl-btns">
+            <button type="button" class="wl-cta wl-big" data-wl="auth">Начать бесплатно</button>
+            <a class="wl-ghost" href="#wl-features" data-wl="go">Как это работает</a>
+          </div>
+        </div>
+        <div class="wl-brief" id="wl-brief" aria-live="polite">
+          <div class="wl-b-head"><b>Брифинг · сегодня</b><small id="wl-b-upd"></small></div>
+          <p class="wl-b-title" id="wl-b-title">Загружаем данные рынка…</p>
+          <div class="wl-b-stats" id="wl-b-stats"></div>
+          <div class="wl-b-ev" id="wl-b-ev"></div>
+        </div>
+      </section>
+      <section class="wl-features" id="wl-features" aria-label="Что внутри">
+        <article id="wl-f-news"><b>Брифинг и новости</b><p>Главное за день простыми словами: что произошло и как это влияет на цену.</p></article>
+        <article id="wl-f-cal"><b>Календарь с итогами</b><p>Факт против прогноза, решение по ставке и реакция рынка за час после события.</p></article>
+        <article id="wl-f-chart"><b>Pro Chart</b><p>Объём девяти бирж в одном графике, VWAP, профиль объёма, CVD и отслеживание позиции.</p></article>
+        <article id="wl-f-jr"><b>Торговый журнал</b><p>Подключи биржу ключом только для чтения — и увидишь, где зарабатываешь, а где теряешь.</p></article>
+      </section>
+      <footer class="wl-foot"><span>CANDEL</span><span>Материалы приложения — не финансовый совет.</span><a href="privacy.html">Политика конфиденциальности</a></footer>
+    </div>
+    <div class="wl-auth" id="wl-auth" hidden role="dialog" aria-modal="true" aria-labelledby="wl-auth-t">
+      <div class="wl-auth-bg" data-wl="close"></div>
+    <div class="login-card glass"><button class="wl-x" type="button" data-wl="close" aria-label="Закрыть">×</button>
       <img class="login-logo" src="icons/icon-192.png" alt="">
-      <h2>Вход в CANDEL</h2>
+      <h2 id="wl-auth-t">Вход в CANDEL</h2>
       <p>Новости, графики и торговый журнал — в твоём аккаунте.</p>
       <button class="login-btn tg" data-login="telegram"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM9.4 14.1l8.6-5.4c.4-.3.8-.1.5.2l-7 6.4-.3 3.1z" fill="currentColor"/></svg><span>Войти через Telegram</span></button>
       <button class="login-btn" data-login="google"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" fill="#fff"/><path d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z" fill="#cfcfcf"/><path d="M6.4 13.9a6 6 0 0 1 0-3.8V7.5H3.1a10 10 0 0 0 0 9z" fill="#9a9a9a"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" fill="#e6e6e6"/></svg><span>Войти через Google</span></button>
       <div class="login-err" role="alert"></div>
       <small>Входя, ты соглашаешься, что материалы приложения — не финансовый совет.</small>
+    </div>
     </div>
   </div>
   <div class="toast glass" id="toast" role="status" aria-live="polite"></div>
