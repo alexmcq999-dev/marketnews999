@@ -667,7 +667,46 @@
   function wgSave(c) { try { localStorage.setItem(WG_KEY, JSON.stringify(c)); } catch (e) { /* noop */ } }
 
   const tagsOf = (t) => (S.notes[t.id] && S.notes[t.id].tags) || t.dtags || [];
-  const perLabel = () => _t(({ 7: "7д", 30: "30д", 90: "90д", 0: "Всё" })[S.period] || "Всё");
+
+  // ---------------------------------------------------------------- период и размер каждой плашки
+  // Период: общий (переключатель над обзором) или свой у плашки — «сегодня», «вчера», 7/30/90 дней, квартал, год,
+  // всё время или произвольные даты. Размер: XS — четверть строки, S — половина, M — три четверти, L — вся строка.
+  const WPER_KEY = "amq-jr-wper", WSIZE_KEY = "amq-jr-wsize";
+  const lsObj = (k) => { try { return JSON.parse(localStorage.getItem(k) || "{}") || {}; } catch (e) { return {}; } };
+  const lsPut = (k, o) => { try { localStorage.setItem(k, JSON.stringify(o)); } catch (e) { /* noop */ } };
+  const PRESETS = [["today", "Сегодня"], ["yesterday", "Вчера"], ["7", "7 дней"], ["30", "30 дней"], ["90", "90 дней"], ["quarter", "Квартал"], ["year", "Год"], ["0", "Всё время"]];
+  const NOPER = ["month", "market"];
+  const SIZES = [[1, "XS", "Четверть строки"], [2, "S", "Половина строки"], [3, "M", "Три четверти строки"], [4, "L", "Вся строка"]];
+  const DEF_SIZE = { pnl: 3, month: 1, recent: 4 };
+  let CUR = null; // период плашки, которая сейчас рисуется
+  const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const ymd = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const fromYmd = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d).getTime(); };
+  function perRange(spec) {
+    spec = String(spec == null ? S.period : spec);
+    const now = new Date();
+    if (spec === "today") return [sod(now), Infinity];
+    if (spec === "yesterday") { const t = sod(now); return [sod(t - 12 * 3600e3), t - 1]; }
+    if (spec === "quarter") return [new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1).getTime(), Infinity];
+    if (spec === "year") return [new Date(now.getFullYear(), 0, 1).getTime(), Infinity];
+    if (spec.startsWith("c:")) { const [, a, b] = spec.split(":"); const f = fromYmd(a), t = fromYmd(b || a); return [Math.min(f, t), new Date(Math.max(f, t)).setHours(23, 59, 59, 999)]; }
+    const n = +spec;
+    return n > 0 ? [Date.now() - n * DAY, Infinity] : [0, Infinity];
+  }
+  const fmtD = (t, y) => new Date(t).toLocaleDateString(I18.locale, y ? { day: "numeric", month: "short", year: "2-digit" } : { day: "numeric", month: "short" });
+  function perShort(spec) {
+    spec = String(spec == null ? S.period : spec);
+    if (spec.startsWith("c:")) { const [f, t] = perRange(spec); return sod(f) === sod(t) ? fmtD(f) : `${fmtD(f)} – ${fmtD(t)}`; }
+    return _t(({ today: "Сегодня", yesterday: "Вчера", 7: "7д", 30: "30д", 90: "90д", quarter: "Квартал", year: "Год", 0: "Всё" })[spec] || "Всё");
+  }
+  function perSub(spec) {
+    spec = String(spec == null ? S.period : spec);
+    if (spec.startsWith("c:")) return perShort(spec);
+    return _t(({ today: "за сегодня", yesterday: "за вчера", 7: "за 7 дней", 30: "за 30 дней", 90: "за 90 дней", quarter: "с начала квартала", year: "с начала года", 0: "за всё время" })[spec] || "за всё время");
+  }
+  const perLabel = () => perShort(CUR);
+  const wSpec = (id) => lsObj(WPER_KEY)[id] || String(S.period);
+  const wSize = (id, w2) => { const v = +lsObj(WSIZE_KEY)[id]; return v >= 1 && v <= 4 ? v : DEF_SIZE[id] || (w2 ? 3 : 2); };
   const pctS = (v, d = 1) => (v == null || !isFinite(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}%`);
   const pfS = (v) => (v === Infinity ? "∞" : v ? v.toFixed(2) : "0.00");
   const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
@@ -705,8 +744,13 @@
   }
 
   // ---------------------------------------------------------------- разметка виджета
+  const ICON_CAL = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+  const ICON_INFO = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></svg>`;
   function wg(id, body, o = {}) {
-    return `<section class="wg ${o.w2 ? "w2" : ""}" data-w="${id}"><header class="wg-h"><b>${esc(_t(WG_NAME[id]))}</b>${o.per === false ? "" : `<span class="wg-per">${esc(perLabel())}</span>`}${o.link ? `<button class="wg-link" data-j="${o.link[0]}" data-v="${esc(o.link[1])}">${esc(_t(o.link[2]))} ›</button>` : ""}</header>${body}</section>`;
+    const size = wSize(id, o.w2), own = !!lsObj(WPER_KEY)[id], info = window.JR_INFO && window.JR_INFO[id];
+    const sz = `<div class="wg-sz" role="radiogroup" aria-label="${esc(_t("Размер плашки"))}">${SIZES.map(([n, l, tip]) => `<button class="${n === size ? "on" : ""}" data-j="wsize" data-v="${id}" data-d="${n}" title="${esc(_t(tip))}" aria-label="${esc(_t(tip))}">${l}</button>`).join("")}</div>`;
+    const per = o.per === false ? "" : `<button class="wg-perb ${own ? "own" : ""}" data-j="wper" data-v="${id}" aria-haspopup="dialog" title="${esc(_t("Период плашки"))}">${ICON_CAL}<span>${esc(perLabel())}</span><i aria-hidden="true">▾</i></button>`;
+    return `<section class="wg sz-${size}" data-w="${id}"><header class="wg-h"><b>${esc(_t(WG_NAME[id]))}</b>${info ? `<button class="wg-i" data-j="winfo" data-v="${id}" aria-label="${esc(_t("Как считается"))}">${ICON_INFO}</button>` : ""}<span class="wg-grow"></span>${sz}${per}${o.link ? `<button class="wg-link" data-j="${o.link[0]}" data-v="${esc(o.link[1])}">${esc(_t(o.link[2]))} ›</button>` : ""}</header>${body}</section>`;
   }
   const foot = (items, c) => `<div class="wg-foot ${c || ""}">${items.map(([v, l, k]) => `<div><b class="${k || ""}">${v}</b><span>${esc(_t(l))}</span></div>`).join("")}</div>`;
   const big = (cap, v, k, sub, md) => `${cap ? `<div class="wg-cap">${esc(cap)}</div>` : ""}<div class="wg-big ${md ? "md" : ""} ${k || ""}">${v}</div>${sub ? `<div class="wg-sub">${sub}</div>` : ""}`;
@@ -779,7 +823,7 @@
     key(s) {
       const pr = s.avgLoss ? s.avgWin / s.avgLoss : null, mxw = Math.max(s.avgWin, s.avgLoss) || 1;
       return wg("key", `<div class="wg-2x2">
-        <div>${big(_t("Чистый результат"), fmtUsd(s.net), cls(s.net), S.period ? `${esc(_t("за"))} ${S.period} ${esc(_t("дн."))}` : esc(_t("за всё время")))}</div>
+        <div>${big(_t("Чистый результат"), fmtUsd(s.net), cls(s.net), esc(perSub(CUR)))}</div>
         <div>${ring(s.winRate)}${big("Win rate", `${Math.round(s.winRate * 100)}%`, "", `${s.wins} ${esc(_t("из"))} ${s.n} ${esc(_t("в плюсе"))}`)}</div>
         <div>${big(_t("Прибыль / убыток"), pr == null ? "∞" : pr.toFixed(2), "", esc(_t("средняя прибыль к среднему убытку")))}<div class="wg-ratio"><i class="up" style="width:${((s.avgWin / mxw) * 100).toFixed(0)}%"></i><i class="down" style="width:${((s.avgLoss / mxw) * 100).toFixed(0)}%"></i></div></div>
         <div>${big(_t("Сделок"), String(s.n), "", `${s.perDay.toFixed(1)} ${esc(_t("в день"))}`)}</div></div>`);
@@ -957,11 +1001,107 @@
     },
   };
 
-  function overviewHtml(s) {
-    const X = ext(s), cfg = wgCfg();
+  // ---------------------------------------------------------------- поповеры плашек: период и «как считается»
+  const POP = { id: null, kind: null, month: new Date(), from: null, to: null, anchor: null };
+  function popEl() {
+    let p = $("#jr-pop");
+    if (!p) {
+      p = document.createElement("div"); p.id = "jr-pop"; p.className = "jr-pop"; p.hidden = true; p.setAttribute("role", "dialog");
+      document.body.appendChild(p);
+      p.addEventListener("click", onClick);
+      p.addEventListener("mouseleave", (e) => { if (POP.kind === "info" && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".wg-i"))) closePop(); });
+      document.addEventListener("click", (e) => { if (!p.hidden && e.target.isConnected && !e.target.closest("#jr-pop") && !e.target.closest("#jr")) closePop(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+      window.addEventListener("resize", closePop);
+    }
+    return p;
+  }
+  function closePop() { const p = $("#jr-pop"); if (p && !p.hidden) { p.hidden = true; p.innerHTML = ""; POP.id = null; POP.kind = null; } }
+  function placePop(p, anchor) {
+    const r = anchor.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+    p.style.visibility = "hidden"; p.hidden = false;
+    const pw = p.offsetWidth, ph = p.offsetHeight;
+    if (W < 600) { p.style.left = `${Math.max(8, (W - pw) / 2)}px`; p.style.top = `${Math.max(8, Math.min(H - ph - 8, r.bottom + 8))}px`; }
+    else {
+      let x = Math.min(W - pw - 12, Math.max(12, r.right - pw)), y = r.bottom + 8;
+      if (POP.kind === "info") x = Math.min(W - pw - 12, Math.max(12, r.left - 12));
+      if (y + ph > H - 12) y = Math.max(12, r.top - ph - 8);
+      p.style.left = `${x}px`; p.style.top = `${y}px`;
+    }
+    p.style.visibility = "";
+  }
+  function openPer(anchor, id) {
+    if (POP.id === id && POP.kind === "per") { closePop(); return; }
+    const spec = wSpec(id);
+    POP.id = id; POP.kind = "per"; POP.anchor = anchor;
+    const [f, t] = perRange(spec);
+    POP.from = spec.startsWith("c:") ? ymd(f) : null; POP.to = spec.startsWith("c:") ? ymd(t) : null;
+    POP.month = new Date(new Date(POP.to ? fromYmd(POP.to) : Date.now()).getFullYear(), new Date(POP.to ? fromYmd(POP.to) : Date.now()).getMonth(), 1);
+    drawPer();
+  }
+  function drawPer() {
+    const p = popEl(), spec = wSpec(POP.id), own = !!lsObj(WPER_KEY)[POP.id];
+    p.classList.remove("info");
+    const [rf, rt] = perRange(spec);
+    const fromS = POP.from ? fmtD(fromYmd(POP.from), true) : rf ? fmtD(rf, true) : "—";
+    const toS = POP.to ? fmtD(fromYmd(POP.to), true) : POP.from ? "…" : fmtD(rt === Infinity ? Date.now() : rt, true);
+    const m = POP.month, y = m.getFullYear(), mo = m.getMonth(), days = new Date(y, mo + 1, 0).getDate(), lead = (new Date(y, mo, 1).getDay() + 6) % 7;
+    const a = POP.from ? fromYmd(POP.from) : rf, b = POP.to ? fromYmd(POP.to) : POP.from ? fromYmd(POP.from) : (rt === Infinity ? sod(Date.now()) : rt);
+    const today = sod(Date.now());
+    let cells = wd().map((d) => `<span class="jp-wd">${esc(d)}</span>`).join("");
+    for (let i = 0; i < lead; i++) cells += `<span></span>`;
+    for (let d = 1; d <= days; d++) {
+      const t = new Date(y, mo, d).getTime(), k = ymd(t), inR = a && t >= sod(a) && t <= b, edge = inR && (t === sod(a) || t === sod(b));
+      cells += `<button class="jp-d ${inR ? "in" : ""} ${edge ? "edge" : ""} ${t === today ? "today" : ""}" data-j="per-day" data-v="${k}" ${t > today ? "disabled" : ""}>${d}</button>`;
+    }
+    const title = m.toLocaleDateString(I18.locale, { month: "long", year: "numeric" });
+    p.innerHTML = `<div class="jp-h"><b>${esc(_t("Период"))}</b><span>${esc(_t(WG_NAME[POP.id]))}</span><button class="jp-x" data-j="pop-close" aria-label="${esc(_t("Закрыть"))}">×</button></div>
+      <div class="jp-pre">${PRESETS.map(([k, l]) => `<button class="${spec === k && own ? "on" : ""}" data-j="per-set" data-v="${k}">${esc(_t(l))}</button>`).join("")}</div>
+      <div class="jp-rng"><span><small>${esc(_t("С"))}</small><b>${esc(fromS)}</b></span><i>→</i><span><small>${esc(_t("По"))}</small><b>${esc(toS)}</b></span></div>
+      <div class="jp-cal"><div class="jp-m"><button data-j="per-mon" data-v="-1" aria-label="${esc(_t("Назад"))}">‹</button><b>${esc(title.charAt(0).toUpperCase() + title.slice(1))}</b><button data-j="per-mon" data-v="1" aria-label="${esc(_t("Вперёд"))}" ${y === new Date().getFullYear() && mo === new Date().getMonth() ? "disabled" : ""}>›</button></div><div class="jp-g">${cells}</div>
+      <p class="jp-hint">${esc(_t(POP.from && !POP.to ? "Выбери конечную дату" : "Нажми на две даты, чтобы задать свой период"))}</p></div>
+      <button class="jp-reset ${own ? "" : "on"}" data-j="per-reset">${esc(_t("Как у всего журнала"))} · ${esc(perShort(String(S.period)))}</button>`;
+    placePop(p, POP.anchor);
+  }
+  function pickDay(k) {
+    if (!POP.from || POP.to) { POP.from = k; POP.to = null; drawPer(); return; }
+    let f = POP.from, t = k;
+    if (fromYmd(t) < fromYmd(f)) [f, t] = [t, f];
+    setPer(`c:${f}:${t}`);
+  }
+  function setPer(spec) {
+    const o = lsObj(WPER_KEY);
+    if (spec == null || spec === String(S.period) && !String(spec).startsWith("c:")) delete o[POP.id]; else o[POP.id] = spec;
+    lsPut(WPER_KEY, o);
+    closePop();
+    render();
+  }
+  function openInfo(anchor, id, toggle) {
+    if (toggle && POP.id === id && POP.kind === "info") { closePop(); return; }
+    const I = window.JR_INFO && window.JR_INFO[id];
+    if (!I) return;
+    const tx = I18.lang === "ru" ? I.ru : I.en;
+    const p = popEl();
+    POP.id = id; POP.kind = "info"; POP.anchor = anchor;
+    const sec = (ic, t, x, c) => `<div class="ji-s ${c || ""}"><span class="ji-k"><i aria-hidden="true">${ic}</i>${esc(_t(t))}</span><p>${esc(x)}</p></div>`;
+    p.innerHTML = `<div class="ji">${sec("∑", "Как считается", tx[0])}${sec("◎", "Зачем это", tx[1])}${sec("✦", "Как помогает", tx[2])}${sec("→", "Пример", tx[3], "ex")}</div>`;
+    p.classList.add("info");
+    placePop(p, anchor);
+  }
+
+  function overviewHtml() {
+    const cfg = wgCfg(), cache = {};
+    const data = (spec) => cache[spec] || (cache[spec] = (() => { const s = stats(filtered(spec)); return { s, X: ext(s) }; })());
     let h = "";
     GROUPS.forEach(([g, title, sub]) => {
-      const parts = cfg.order.filter((id) => WG_GROUP[id] === g && !cfg.off.includes(id)).map((id) => { try { return WG[id](s, X); } catch (e) { console.warn("widget", id, e); return ""; } }).filter(Boolean);
+      const parts = cfg.order.filter((id) => WG_GROUP[id] === g && !cfg.off.includes(id)).map((id) => {
+        CUR = NOPER.includes(id) ? String(S.period) : wSpec(id);
+        try {
+          const { s, X } = data(CUR);
+          if (!s.n && !NOPER.includes(id) && id !== "exch") return wg(id, emptyW("За этот период сделок нет", "Выбери другой период в правом углу плашки."));
+          return WG[id](s, X);
+        } catch (e) { console.warn("widget", id, e); return ""; } finally { CUR = null; }
+      }).filter(Boolean);
       if (parts.length) h += `<div class="wg-sec"><b>${esc(_t(title))}</b><small>${esc(_t(sub))}</small></div><div class="wg-grid">${parts.join("")}</div>`;
     });
     return h || `<div class="jr-empty glass"><p>${esc(_t("Все виджеты выключены — включи нужные в «Виджеты»."))}</p></div>`;
@@ -1248,6 +1388,11 @@
       <div class="jr-sheet" id="jr-sheet" hidden></div>`;
     document.body.appendChild(el);
     el.addEventListener("click", onClick);
+    // описание плашки — по наведению на ⓘ (на компьютере), по нажатию — везде
+    const hover = () => window.matchMedia && window.matchMedia("(hover: hover)").matches;
+    el.addEventListener("mouseover", (e) => { const b = e.target.closest(".wg-i"); if (b && hover() && !(POP.kind === "info" && POP.id === b.dataset.v)) openInfo(b, b.dataset.v, false); });
+    el.addEventListener("mouseout", (e) => { const b = e.target.closest(".wg-i"); if (b && hover() && POP.kind === "info" && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest("#jr-pop"))) setTimeout(() => { if (!document.querySelector("#jr-pop:hover")) closePop(); }, 120); });
+    el.querySelector("#jr-body").addEventListener("scroll", closePop, { passive: true });
     el.addEventListener("change", async (e) => {
       const ta = e.target.closest(".jr-note");
       if (ta) { const id = ta.dataset.note; S.notes[id] = Object.assign({}, S.notes[id], { note: ta.value.slice(0, 1000) }); try { await kvSet("notes", S.notes); } catch (er) { /* noop */ } return; }
@@ -1257,6 +1402,7 @@
 
   function onClick(e) {
     const a = e.target.closest("[data-j]");
+    if (!e.target.closest("#jr-pop") && !(a && /^(wper|winfo)$/.test(a.dataset.j))) closePop();
     if (!a) return;
     const act = a.dataset.j, v = a.dataset.v;
     if (act === "close") close();
@@ -1279,6 +1425,14 @@
     else if (act === "tp-iv") { S.tpIv = v; render(); }
     else if (act === "ai-trade") aiTrade(a, v);
     else if (act === "widgets") widgetsSheet();
+    else if (act === "wsize") { const o = lsObj(WSIZE_KEY); o[v] = +a.dataset.d; lsPut(WSIZE_KEY, o); render(); }
+    else if (act === "wper") openPer(a, v);
+    else if (act === "winfo") openInfo(a, v, true);
+    else if (act === "per-set") setPer(v);
+    else if (act === "per-day") pickDay(v);
+    else if (act === "per-mon") { POP.month = new Date(POP.month.getFullYear(), POP.month.getMonth() + +v, 1); drawPer(); }
+    else if (act === "per-reset") setPer(null);
+    else if (act === "pop-close") closePop();
     else if (act === "wg-tg" || act === "wg-mv" || act === "wg-reset") wgAction(act, v, +a.dataset.d || 0);
     else if (act === "tab") { close(); setTimeout(() => { const b = document.querySelector(`.nav-btn[data-tab="${v}"]`); if (b) b.click(); }, 120); }
     else if (act === "cal-month") { const d = calMonth(); S.calMonth = new Date(d.getFullYear(), d.getMonth() + +v, 1); S.calDay = null; render(); }
@@ -1286,10 +1440,10 @@
     else if (act === "cal-day") { S.calDay = S.calDay === v ? null : v; S.expanded = null; render(); }
   }
 
-  function filtered() {
+  function filtered(spec) {
     const src = S.demo ? (S._demo || (S._demo = demoTrades())) : S.trades;
-    const from = S.period ? Date.now() - S.period * DAY : 0;
-    return src.filter((t) => (S.exFilter === "all" || t.ex === S.exFilter) && (t.open || (t.closeT || 0) >= from));
+    const [from, to] = perRange(spec);
+    return src.filter((t) => (S.exFilter === "all" || t.ex === S.exFilter) && (t.open ? to === Infinity : (t.closeT || 0) >= from && (t.closeT || 0) <= to));
   }
 
   const ICON_GRID = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
@@ -1317,13 +1471,14 @@
       + (exs.length > 1 ? `<div class="jr-seg">${["all", ...exs].map((x) => `<button class="${S.exFilter === x ? "on" : ""}" data-j="exf" data-v="${x}">${esc(x === "all" ? _t("Все") : EX[x].name.replace(" Futures", ""))}</button>`).join("")}</div>` : "")
       + `</div>`;
     if (view === "calendar") { h += calendarHtml() + `</div>`; body.innerHTML = h; renderTrades(); return; }
-    if (!s.n && (view === "overview" || !s.open.length)) {
+    const anyAtAll = view === "overview" && filtered("0").length;
+    if (!s.n && !anyAtAll && (view === "overview" || !s.open.length)) {
       h += `<div class="jr-empty glass"><p>${esc(S.syncing ? _t("Загружаю сделки с биржи…") : _t("За этот период закрытых сделок нет."))}</p></div></div>`;
       body.innerHTML = h; return;
     }
     if (view === "trades") { h += tradesViewHtml(s) + `</div>`; body.innerHTML = h; renderTrades(); return; }
-    h += overviewHtml(s);
-    setTimeout(() => ensureExc(s.closed), 50);
+    h += overviewHtml();
+    setTimeout(() => ensureExc(stats(filtered("0")).closed), 50);
     h += `<p class="hint">${esc(_t("Ключи хранятся только на этом устройстве и не отправляются на наш сервер. Результаты — по данным биржи; позиции, открытые до начала истории, считаются по реализованному PnL."))}</p></div>`;
     body.innerHTML = h;
   }
@@ -1612,6 +1767,7 @@
   function close() {
     const el = $("#jr");
     if (!el) return;
+    closePop();
     S.open = false;
     el.classList.remove("show");
     document.documentElement.classList.remove("pc-open");
