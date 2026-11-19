@@ -1499,7 +1499,7 @@
       <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C8B08A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h2>${esc(_t("Твой торговый журнал"))}</h2>
       <p>${esc(_t("Подключи биржу — журнал сам соберёт все закрытые позиции и покажет, где ты зарабатываешь, а где теряешь: win rate, profit factor, просадку, лучшие монеты и часы, ошибки вроде отыгрыша."))}</p>
-      <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}"><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></button>`).join("")}</div>
+      <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}"><i class="jr-ex-ic" aria-hidden="true">${esc(({ binance: "BN", bybit: "BY", okx: "OKX", bingx: "BX", bitunix: "BU", hyperliquid: "HL" })[k] || EX[k].name.slice(0, 2).toUpperCase())}</i><span><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></span><em aria-hidden="true">›</em></button>`).join("")}</div>
       <ul class="jr-safe">
         <li>${esc(_t("Ключи хранятся только на этом устройстве, зашифрованными. Мы их не видим."))}</li>
         <li>${esc(_t("Нужен ключ только с правом чтения: с ним нельзя торговать и выводить средства."))}</li>
@@ -1596,6 +1596,7 @@
   // ---------------------------------------------------------------- открыть / закрыть
   function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#jr-sheet").hidden) closeSheet(); else if (S.view === "trade") { S.view = S.backView || "trades"; render(); } else close(); }
   async function open() {
+    try { const pc = document.getElementById("pc"); if (pc && !pc.hidden && window.ProChart) window.ProChart.close(); } catch (e) { /* noop */ }
     const el = shell();
     S.open = true;
     el.hidden = false;

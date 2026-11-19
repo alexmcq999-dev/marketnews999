@@ -20,6 +20,7 @@
     const b = e.target.closest("[data-open]");
     if (!b) return;
     if (b.dataset.open === "jr-open") { if (window.Journal) window.Journal.open(); }
+    else if (window.ProChart) window.ProChart.open();
     else { const el = document.getElementById(b.dataset.open); if (el) el.click(); }
   });
 
@@ -34,11 +35,25 @@
   if (window.ResizeObserver && brand) new ResizeObserver(place).observe(brand);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
 
+  // логотип ведёт на «Обзор»: закрывает журнал / Pro Chart и прокручивает наверх
+  if (brand) {
+    brand.setAttribute("role", "link"); brand.setAttribute("tabindex", "0"); brand.setAttribute("aria-label", _t("На главную"));
+    brand.classList.add("brand-link");
+    const home = () => {
+      const ov = document.querySelector('.nav-btn[data-tab="overview"]');
+      if (ov) ov.click();
+      else { try { window.Journal && window.Journal.close(); window.ProChart && window.ProChart.close(); } catch (e) { /* noop */ } }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    brand.addEventListener("click", home);
+    brand.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); home(); } });
+  }
+
   const shown = (id) => { const el = document.getElementById(id); return !!(el && !el.hidden && el.classList.contains("show")); };
   const sync = () => {
     const j = shown("jr"), p = shown("pc");
-    tools.querySelector('[data-open="jr-open"]').classList.toggle("active", j);
-    tools.querySelector('[data-open="pc-open"]').classList.toggle("active", p && !j);
+    tools.querySelector('[data-open="pc-open"]').classList.toggle("active", p);
+    tools.querySelector('[data-open="jr-open"]').classList.toggle("active", j && !p);
     document.documentElement.classList.toggle("overlay-open", j || p);
   };
   new MutationObserver(() => setTimeout(sync, 40)).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });

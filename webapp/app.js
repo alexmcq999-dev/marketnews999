@@ -566,30 +566,37 @@
     const val = x.unit === "bp" ? `${v > 0 ? "+" : ""}${v.toFixed(0)} ${_t("б.п.")}` : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
     return `<span class="rx ${cls}">${esc(x.asset)} ${val}</span>`;
   }
+  // служебные фразы ИИ («не найден», «не зафиксирована») пользователю не показываем
+  const JUNK = /не найден|не зафиксирован|нет данных|not found/i;
+  const clean = (s) => { const t = loc(s); return t && !JUNK.test(t) ? t : ""; };
+  const headTitle = (t) => String(t || "").replace(/\s+-\s+[^-]+$/, "");
   function resultBlock(e) {
     const r = e.result;
     if (!r) return "";
     const chips = [];
+    if (loc(r.decision)) chips.push(`<span class="res-chip dec">${esc(loc(r.decision))}</span>`);
     if (r.vs_forecast && VS[r.vs_forecast]) chips.push(`<span class="res-chip ${VS[r.vs_forecast][1]}">${VS[r.vs_forecast][0]}</span>`);
     if (r.tone && TONE[r.tone]) chips.push(`<span class="res-chip ${TONE[r.tone][1]}">${TONE[r.tone][0]}</span>`);
-    if (r.actual_src === "tradingview") chips.push(`<span class="res-chip">${_t("официальные данные")}</span>`);
     const rx = (r.reaction || []).map(rxChip).join("");
-    const src = (r.sources || [])[0];
-    const vsCls = r.vs_forecast === "above" ? "up" : r.vs_forecast === "below" ? "down" : "";
-    const head = loc(r.decision)
-      ? `<div class="res-head"><span>${_t("Решение")}</span><b>${esc(loc(r.decision))}</b></div>`
-      : (e.actual || r.actual) ? `<div class="res-head"><span>${_t("Факт")}</span><b class="${vsCls}">${esc(e.actual || r.actual)}</b>${e.forecast ? `<em>${_t("прогноз")} ${esc(e.forecast)}</em>` : ""}${e.previous ? `<em>${_t("было")} ${esc(e.previous)}</em>` : ""}</div>` : "";
-    return `<div class="res">
-      ${head}
+    const sum = clean(r.summary), imp = clean(r.impact) || clean(r.reaction_label);
+    const srcs = (r.sources || []).filter((x) => x && x.url);
+    // для выступлений и протоколов без итога показываем главные заголовки — это и есть содержание
+    const heads = !sum && srcs.length ? srcs.slice(0, 2).map((x) => `<li>${esc(headTitle(x.title))} <em>${esc(x.source || "")}</em></li>`).join("") : "";
+    if (!chips.length && !sum && !heads && !rx && !imp) return "";
+    return `<div class="ce-res">
       ${chips.length ? `<div class="res-chips">${chips.join("")}</div>` : ""}
-      ${loc(r.summary) ? `<p class="res-sum">${esc(loc(r.summary))}</p>` : ""}
-      ${rx ? `<div class="rx-row"><span class="rx-l">${r.reaction_full ? _t("Реакция за час") : _t("Реакция (идёт час)")}</span>${rx}</div>` : ""}
-      ${loc(r.impact) ? `<p class="res-imp">${esc(loc(r.impact))}</p>` : (loc(r.reaction_label) ? `<p class="res-imp">${esc(loc(r.reaction_label))}</p>` : "")}
-      ${src && src.url ? `<button class="res-src" data-url="${esc(src.url)}">${esc(src.source || _t("источник"))} ↗</button>` : ""}
+      ${sum ? `<p class="ce-sum">${esc(sum)}</p>` : ""}
+      ${heads ? `<ul class="ce-heads">${heads}</ul>` : ""}
+      ${rx ? `<div class="ce-rx"><span>${r.reaction_full ? _t("Реакция за час") : _t("Реакция (идёт час)")}</span>${rx}</div>` : ""}
+      ${imp ? `<p class="ce-imptxt">${esc(imp)}</p>` : ""}
+      ${srcs.length ? `<div class="ce-src">${srcs.slice(0, 3).map((x) => `<button class="res-src" data-url="${esc(x.url)}">${esc(x.source || _t("источник"))} ↗</button>`).join("")}${r.actual_src === "tradingview" ? `<span>${_t("факт — официальные данные")}</span>` : ""}</div>` : ""}
     </div>`;
   }
 
   // ---------------------------------------------------------------- календарь
+  function numCell(label, val, cls) {
+    return `<span class="ce-n ${cls || ""}"><small>${label}</small><b>${val ? esc(val) : "—"}</b></span>`;
+  }
   function renderCalendar() {
     const all = state.data.calendar || [];
     const ev = state.mode === "simple" ? all.filter((e) => e.impact === "High") : all;
@@ -606,20 +613,25 @@
     let h = state.mode === "simple" ? `<p class="explain" style="margin:6px 4px 0">${_t("Показаны только самые важные события недели — в эти моменты рынок может резко двигаться. Все события — в режиме «Продвинутый».")}</p>` : "";
     for (const d of days) {
       const high = d.items.filter((x) => x.e.impact === "High").length;
-      h += `<div class="day-title"><b>${d.today ? _t("Сегодня") : esc(d.k)}</b><span>${high ? `${high} ${_t("важн.")}` : ""}</span></div><div class="glass list">`;
+      h += `<div class="day-title"><b>${d.today ? _t("Сегодня") : esc(d.k)}</b><span>${high ? `${high} ${_t("важн.")}` : ""}</span></div><div class="ce-day">`;
       for (const { e, i } of d.items) {
-        const nums = [e.actual && `${_t("факт")} <b>${esc(e.actual)}</b>`, e.forecast && `${_t("прогноз")} ${esc(e.forecast)}`, e.previous && `${_t("пред.")} ${esc(e.previous)}`].filter(Boolean).join(" · ");
-        h += `<div class="ev ${new Date(e.ts) < now ? "past" : ""} ${e.result ? "has-res" : ""} ${i === nextIdx ? "next" : ""}">
-          <span class="time">${fmtTime(e.ts)}</span>
-          <span class="title">${FLAGS[e.country] || ""} ${esc(e.title)}</span>
-          <span class="imp ${e.impact === "High" ? "high" : ""}">${e.impact === "High" ? _t("высокая важность") : _t("средняя важность")}</span>
-          ${nums ? `<span class="nums">${nums}</span>` : ""}
-          ${resultBlock(e)}
+        const past = new Date(e.ts) < now;
+        const r = e.result || {};
+        const act = e.actual || r.actual || "";
+        const hasNums = act || e.forecast || e.previous;
+        const vs = r.vs_forecast === "above" ? "↑" : r.vs_forecast === "below" ? "↓" : "";
+        h += `<div class="ce ${past ? "past" : ""} ${act || e.result ? "done" : ""} ${i === nextIdx ? "next" : ""}">
+          <span class="ce-t">${fmtTime(e.ts)}</span>
+          <div class="ce-main">
+            <div class="ce-title"><i class="ce-imp ${e.impact === "High" ? "high" : ""}" title="${e.impact === "High" ? _t("высокая важность") : _t("средняя важность")}"></i><span>${FLAGS[e.country] || ""} ${esc(e.title)}</span>${i === nextIdx ? `<em class="ce-next">${_t("далее")}</em>` : ""}</div>
+          </div>
+          ${hasNums ? `<div class="ce-nums">${numCell(_t("Факт"), act ? act + (vs ? " " + vs : "") : "", act ? "act" : "")}${numCell(_t("Прогноз"), e.forecast)}${numCell(_t("Было"), e.previous)}</div>` : `<div class="ce-nums"></div>`}
+          ${e.result ? `<div class="ce-body">${resultBlock(e)}</div>` : ""}
         </div>`;
       }
       h += `</div>`;
     }
-    h += `<p class="hint">${_t("Время московское. Календарь — ForexFactory. Итоги: факт берётся из свежих заголовков новостей и проверяется, реакция рынка — измеренное изменение цены за 60 минут после события.")}</p>`;
+    h += `<p class="hint">${_t("Время московское. Календарь — ForexFactory, факт — официальные данные (календарь TradingView). Реакция рынка — измеренное изменение цены за 60 минут после события.")}</p>`;
     box.innerHTML = h;
     box.querySelectorAll(".res-src").forEach((b) => b.addEventListener("click", () => openLink(b.dataset.url)));
   }

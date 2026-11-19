@@ -31,13 +31,20 @@ MAX_PER_RUN = 12          # сколько событий максимум об�
 MAX_ATTEMPTS = 3          # сколько раз пытаться найти фактическое значение
 
 COUNTRY = {"USD": "US", "EUR": "Eurozone", "GBP": "UK", "JPY": "Japan", "CNY": "China", "ALL": ""}
-ASSETS = [  # (подпись, тикер Yahoo, единица)
-    ("BTC", "BTC-USD", "pct"),
-    ("S&P 500", "ES=F", "pct"),
-    ("DXY", "DX-Y.NYB", "pct"),
-    ("US10Y", "^TNX", "bp"),
-    ("Золото", "GC=F", "pct"),
+ASSETS = [  # (подпись, источники по порядку, единица). hl: — свечи Hyperliquid, yf: — Yahoo, bn: — Binance
+    ("BTC", ("hl:BTC", "bn:BTCUSDT", "yf:BTC-USD"), "pct"),
+    ("S&P 500", ("hl:xyz:SP500", "yf:ES=F"), "pct"),
+    ("DXY", ("yf:DX-Y.NYB", "hl:xyz:DXY"), "pct"),
+    ("US10Y", ("hl:para:10Y", "yf:^TNX"), "bp"),
+    ("Золото", ("hl:xyz:GOLD", "bn:PAXGUSDT", "yf:GC=F"), "pct"),
 ]
+PAIR = {  # валютная пара страны события
+    "USD": ("EUR/USD", ("hl:xyz:EUR", "bn:EURUSDT", "yf:EURUSD=X"), "pct"),
+    "EUR": ("EUR/USD", ("hl:xyz:EUR", "bn:EURUSDT", "yf:EURUSD=X"), "pct"),
+    "GBP": ("GBP/USD", ("hl:xyz:GBP", "yf:GBPUSD=X"), "pct"),
+    "JPY": ("USD/JPY", ("hl:xyz:JPY", "yf:JPY=X"), "pct"),
+}
+RESULTS_VERSION = 2   # при смене логики старые итоги пересчитываются
 TALK = re.compile(r"\b(speaks?|speech|testif\w*|press conference|minutes|statement|summit|meetings?|hearing)\b", re.I)
 EXPAND = [(r"\bm/m\b", "month over month"), (r"\by/y\b", "year over year"), (r"\bq/q\b", "quarter over quarter"),
           (r"\bCPI\b", "CPI inflation"), (r"\bPPI\b", "PPI producer prices"), (r"\bGDP\b", "GDP"),
@@ -51,11 +58,11 @@ def key(ev: dict) -> str:
 
 
 # ------------------------------------------------------------------ цены
-def intraday(symbol: str) -> list[tuple[int, float]]:
+def _yahoo(symbol: str) -> list[tuple[int, float]]:
     for host in ("query1", "query2"):
         try:
             r = requests.get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{requests.utils.quote(symbol)}",
-                             params={"range": "5d", "interval": "5m"}, headers={"User-Agent": UA}, timeout=TIMEOUT)
+                             params={"range": "7d", "interval": "5m"}, headers={"User-Agent": UA}, timeout=TIMEOUT)
             if r.status_code == 429:
                 time.sleep(1.5)
                 continue
@@ -64,8 +71,60 @@ def intraday(symbol: str) -> list[tuple[int, float]]:
             ts, cl = res.get("timestamp") or [], res["indicators"]["quote"][0]["close"]
             return [(t, c) for t, c in zip(ts, cl) if c is not None]
         except Exception as e:  # noqa: BLE001
-            print(f"[results] {symbol}: {type(e).__name__}", file=sys.stderr)
+            print(f"[results] yahoo {symbol}: {type(e).__name__}", file=sys.stderr)
     return []
+
+
+def _hyperliquid(coin: str) -> list[tuple[int, float]]:
+    now = int(time.time() * 1000)
+    try:
+        r = requests.post("https://api.hyperliquid.xyz/info", timeout=TIMEOUT,
+                          json={"type": "candleSnapshot", "req": {"coin": coin, "interval": "5m",
+                                                                   "startTime": now - 8 * 86400 * 1000, "endTime": now}})
+        r.raise_for_status()
+        rows = r.json() or []
+        return [(int(x["t"]) // 1000, float(x["c"])) for x in rows if isinstance(x, dict) and x.get("c")]
+    except Exception as e:  # noqa: BLE001
+        print(f"[results] hyperliquid {coin}: {type(e).__name__}", file=sys.stderr)
+        return []
+
+
+def _binance(symbol: str) -> list[tuple[int, float]]:
+    out, end = [], int(time.time() * 1000)
+    try:
+        for _ in range(3):  # 3 × 1000 пятиминуток ≈ 10 дней
+            r = requests.get("https://data-api.binance.vision/api/v3/klines", timeout=TIMEOUT,
+                             params={"symbol": symbol, "interval": "5m", "limit": 1000, "endTime": end})
+            r.raise_for_status()
+            rows = r.json() or []
+            if not rows:
+                break
+            out = [(int(k[0]) // 1000, float(k[4])) for k in rows] + out
+            end = int(rows[0][0]) - 1
+        return out
+    except Exception as e:  # noqa: BLE001
+        print(f"[results] binance {symbol}: {type(e).__name__}", file=sys.stderr)
+        return out
+
+
+_SERIES: dict[str, list] = {}
+
+
+def series_for(sources: tuple) -> list[tuple[int, float]]:
+    """Первая непустая серия 5-минутных цен из списка источников (результат кэшируется на запуск)."""
+    for src in sources:
+        if src not in _SERIES:
+            kind, sym = src.split(":", 1)
+            _SERIES[src] = {"hl": _hyperliquid, "bn": _binance, "yf": _yahoo}[kind](sym)
+            if _SERIES[src]:
+                print(f"[results] цены {src}: {len(_SERIES[src])} свечей", file=sys.stderr)
+        if _SERIES[src]:
+            return _SERIES[src]
+    return []
+
+
+def intraday(symbol: str) -> list[tuple[int, float]]:   # совместимость
+    return _yahoo(symbol)
 
 
 def _price_at(series, t: int) -> float | None:
@@ -79,18 +138,22 @@ def _price_at(series, t: int) -> float | None:
     return best
 
 
-def reaction(series: dict, t_event: datetime, now: datetime) -> tuple[list[dict], bool]:
+def reaction(ev: dict, t_event: datetime, now: datetime) -> tuple[list[dict], bool]:
+    """Изменение цены за HORIZON_MIN минут после события (BTC, S&P 500, DXY, US10Y, золото, пара страны)."""
     t0 = int(t_event.timestamp())
     t1 = t0 + HORIZON_MIN * 60
     full = now.timestamp() >= t1 + 300
+    assets = list(ASSETS)
+    if ev.get("country") in PAIR:
+        assets.insert(2, PAIR[ev["country"]])
     out = []
-    for name, sym, unit in ASSETS:
-        s = series.get(sym) or []
+    for name, sources, unit in assets:
+        s = series_for(sources)
+        if not s or s[-1][0] < t0:  # нет данных после события
+            continue
         p0 = _price_at(s, t0)
         p1 = _price_at(s, min(t1, int(now.timestamp())))
         if p0 is None or p1 is None or p0 == 0:
-            continue
-        if not s or s[-1][0] < t0:  # рынок закрыт — данных после события нет
             continue
         v = (p1 - p0) * 100 if unit == "bp" else (p1 / p0 - 1) * 100
         out.append({"asset": name, "unit": unit, "value": round(v, 2 if unit == "pct" else 1)})
@@ -336,25 +399,54 @@ def enrich_official(cal: list[dict], results: dict, now: datetime) -> int:
 # ------------------------------------------------------------------ основной проход
 PROMPT = (
     "Ниже прошедшие события экономического календаря (JSON). Для каждого есть прогноз/предыдущее значение, "
-    "свежие заголовки новостей и ИЗМЕРЕННАЯ реакция рынка за 60 минут после события. Для КАЖДОГО верни объект в items:\n"
+    "свежие заголовки новостей и ИЗМЕРЕННАЯ реакция рынка за 60 минут после события. Пиши ТОЛЬКО по-русски. "
+    "Для КАЖДОГО события верни объект в items:\n"
     "- id — как во входе;\n"
     "- actual — фактическое значение в тех же единицах, что прогноз (например «0.4%», «254K»), ТОЛЬКО если оно явно "
-    "есть в заголовках; иначе пустая строка. Для выступлений и решений без числа — пустая строка. Если во входе есть "
+    "есть в заголовках; иначе пустая строка. Для выступлений, протоколов и обзоров — пустая строка. Если во входе есть "
     "official_actual — это официальный факт: верни его же;\n"
     "- decision — для решений ЦБ по ставке: новая ставка и изменение (например «ставка 4.25%, −25 б.п.»), иначе пусто;\n"
-    "- tone — hawkish | dovish | neutral | '' (для ЦБ, выступлений и инфляции/занятости — как результат влияет на ставки);\n"
-    "- summary — 1–2 предложения по-русски: что вышло или что сказали — с цифрами: факт против прогноза и прошлого "
-    "значения, для ставки — новое значение и изменение (official_actual / official_decision, если есть). Только факты "
-    "из входа; если результата нет ни в official_actual, ни в заголовках — так и напиши: «результат в новостях не найден»;\n"
-    "- impact — 1 предложение по-русски: что это значит для доллара, акций и крипты. Опирайся на измеренную реакцию рынка "
-    "из входа, не придумывай движения, которых там нет.\n"
+    "- tone — hawkish | dovish | neutral | '' (для ЦБ, выступлений, протоколов и инфляции/занятости — как результат "
+    "влияет на ставки);\n"
+    "- summary — 1–2 предложения: что вышло или что сказали.\n"
+    "  • Для статистики — с цифрами: факт против прогноза и прошлого значения (official_actual, если есть).\n"
+    "  • Для выступлений, протоколов (minutes), обзоров и пресс-конференций — главные тезисы из заголовков: что сказали "
+    "о ставке, инфляции, экономике, рисках. Заголовки и есть результат — перескажи их суть своими словами.\n"
+    "  • Если по заголовкам действительно нельзя понять содержание — пустая строка. Никогда не пиши фразы вроде "
+    "«результат не найден» или «нет данных»;\n"
+    "- impact — 1 предложение: что это значит для доллара, акций и крипты. Опирайся на измеренную реакцию рынка "
+    "(market_reaction_60m) и называй реальные движения из неё; если её нет — коротко, чего ждать, без выдуманных цифр. "
+    "Никогда не пиши «реакция не зафиксирована» или «не найден».\n"
     "Формат ответа: {\"items\": [...]}\n\n"
 )
+JUNK = re.compile(r"не найден|не зафиксирован|нет данных|not found|no data", re.I)
+
+
+def _migrate(results: dict) -> None:
+    """Итоги, посчитанные прошлой логикой (без реакции рынка, с «не найден»), пересчитываем заново."""
+    for r in results.values():
+        if r.get("v") == RESULTS_VERSION:
+            continue
+        for f in ("summary", "impact", "reaction_label"):
+            if JUNK.search(str(r.get(f) or "")):
+                r.pop(f, None)
+                r.pop(f + "_i18n", None)
+        if not any(x.get("asset") == "BTC" for x in r.get("reaction") or []):
+            r.pop("reaction", None)
+            r.pop("reaction_full", None)
+            r.pop("reaction_label", None)
+        if r.get("summary") and not re.search(r"[а-яё]", r["summary"], re.I):   # итог по-английски — перепишем
+            r.pop("summary", None)
+            r.pop("summary_i18n", None)
+        r["final"] = False
+        r["attempts"] = 0
+        r["v"] = RESULTS_VERSION
 
 
 def build(cal: list[dict], prev: dict, now: datetime, llm_json=None) -> dict:
     """Возвращает {key: result} для прошедших событий. prev — результаты прошлых запусков."""
     results = {k: v for k, v in (prev or {}).items()}
+    _migrate(results)
     try:
         enrich_official(cal, results, now)
     except Exception as e:  # noqa: BLE001
@@ -368,9 +460,7 @@ def build(cal: list[dict], prev: dict, now: datetime, llm_json=None) -> dict:
         if t > now - timedelta(minutes=10) or t < now - timedelta(days=7):
             continue
         r = results.get(key(ev)) or {}
-        done = r.get("final") or (r.get("reaction_full") and (r.get("summary") or not llm_json)
-                                  and (r.get("actual") or r.get("attempts", 0) >= MAX_ATTEMPTS
-                                       or TALK.search(ev.get("title", ""))))
+        done = r.get("final")
         if not done:
             past.append((t, ev))
     past.sort(key=lambda x: (x[1].get("impact") != "High", -x[0].timestamp()))
@@ -378,16 +468,18 @@ def build(cal: list[dict], prev: dict, now: datetime, llm_json=None) -> dict:
     if not past:
         return {k: v for k, v in results.items() if any(key(e) == k for e in cal)}
 
-    series = {sym: intraday(sym) for _, sym, _ in ASSETS}
     pending = []
     for t, ev in past:
         k = key(ev)
         r = dict(results.get(k) or {})
-        rx, full = reaction(series, t, now)
+        rx, full = reaction(ev, t, now)
         if rx:
             r["reaction"], r["reaction_full"] = rx, full
             r["reaction_label"] = reaction_label(rx)
         heads = headlines(ev, t)
+        if not heads and r.get("sources"):   # поиск не ответил — используем заголовки прошлого запуска
+            heads = [{"title": x.get("title", ""), "source": x.get("source", ""), "link": x.get("url", ""), "ts": ""}
+                     for x in r["sources"]]
         if heads:
             r["sources"] = [{"title": h["title"], "source": h["source"], "url": h["link"]} for h in heads[:3]]
         r["attempts"] = r.get("attempts", 0) + 1
@@ -427,15 +519,18 @@ def build(cal: list[dict], prev: dict, now: datetime, llm_json=None) -> dict:
                 for f in ("decision", "summary", "impact"):
                     if f == "decision" and r.get("actual_src") == "tradingview" and r.get("decision"):
                         continue
-                    if it.get(f):
-                        r[f] = str(it[f]).strip()
+                    val = str(it.get(f) or "").strip()
+                    if val and not JUNK.search(val):
+                        r[f] = val
                 if it.get("tone") in ("hawkish", "dovish", "neutral"):
                     r["tone"] = it["tone"]
 
     for k, ev, t, heads in pending:
         r = results[k]
-        r["final"] = bool(r.get("reaction_full") and (r.get("summary") or not llm_json)
+        r["final"] = bool((r.get("reaction_full") or r.get("attempts", 0) >= MAX_ATTEMPTS + 2)
+                          and (r.get("summary") or not llm_json or r.get("attempts", 0) >= MAX_ATTEMPTS)
                           and (r.get("actual") or r.get("attempts", 0) >= MAX_ATTEMPTS or TALK.search(ev.get("title", ""))))
+        r["v"] = RESULTS_VERSION
     keep = {key(e) for e in cal}
     return {k: v for k, v in results.items() if k in keep}
 

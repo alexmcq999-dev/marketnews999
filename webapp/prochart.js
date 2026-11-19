@@ -283,7 +283,37 @@
 
   // ================================================================ примитив графика: VWAP каждой свечи + профиль объёма
   class Overlay {
-    constructor() { this.cs = []; this.prof = null; this.showTicks = true; this.showVP = true; this._views = [{ zOrder: () => "top", renderer: () => this }]; }
+    constructor() {
+      this.cs = []; this.prof = null; this.showTicks = true; this.showVP = true; this.zone = null;
+      const zones = { draw: (t) => this.drawZones(t) };
+      this._views = [{ zOrder: () => "bottom", renderer: () => zones }, { zOrder: () => "top", renderer: () => this }];
+    }
+    // зона позиции: от ТВХ до текущей цены — зелёная в плюсе, красная в минусе; до TP / SL — едва заметно
+    drawZones(target) {
+      const z = this.zone;
+      if (!z || !this.series) return;
+      const s = this.series;
+      target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+        const W = mediaSize.width;
+        const band = (a, b, fill, edge) => {
+          const ya = s.priceToCoordinate(a), yb = s.priceToCoordinate(b);
+          if (ya == null || yb == null) return;
+          const y0 = Math.min(ya, yb), h = Math.abs(yb - ya);
+          ctx.fillStyle = fill; ctx.fillRect(0, y0, W, h);
+          if (edge) {
+            const g = ctx.createLinearGradient(0, y0, 0, y0 + h);
+            g.addColorStop(0, edge); g.addColorStop(1, "rgba(255,255,255,0)");
+            ctx.fillStyle = g; ctx.fillRect(0, y0, W, Math.min(h, 26));
+          }
+        };
+        if (z.tp) band(z.entry, z.tp, "rgba(63,182,139,.045)");
+        if (z.sl) band(z.entry, z.sl, "rgba(224,100,90,.045)");
+        if (z.price != null && z.price !== z.entry) {
+          const win = (z.price - z.entry) * (z.side === "long" ? 1 : -1) > 0;
+          band(z.entry, z.price, win ? "rgba(63,182,139,.17)" : "rgba(224,100,90,.17)", win ? "rgba(63,182,139,.12)" : "rgba(224,100,90,.12)");
+        }
+      });
+    }
     attached(p) { this.chart = p.chart; this.series = p.series; this.req = p.requestUpdate; }
     detached() { this.chart = null; }
     paneViews() { return this._views; }
@@ -662,11 +692,12 @@
     (S.posLines || []).forEach((l) => { try { ser.candle.removePriceLine(l); } catch (e) { /* noop */ } });
     S.posLines = [];
     const p = S.pos, badge = $("#pc-posbadge");
-    if (!p) { if (badge) badge.hidden = true; stopPosStream(); return; }
+    if (!p) { if (badge) badge.hidden = true; stopPosStream(); if (overlay) { overlay.zone = null; overlay.update(); } return; }
     const L = (price, title, color, style, w) => S.posLines.push(ser.candle.createPriceLine({ price, color, lineWidth: w || 1, lineStyle: style, axisLabelVisible: true, title }));
     L(p.entry, `${_t("ТВХ")} ${p.side === "long" ? "LONG" : "SHORT"}`, "#F2F0EC", 0, 1);
     if (p.tp) L(p.tp, "TP", C.up, 2);
     if (p.sl) L(p.sl, "SL", C.down, 2);
+    bindBadge();
     startPosStream();
     posTick(S.posLive ? S.posLive.price : S.cs.length ? S.cs[S.cs.length - 1].c : null);
   }
@@ -689,11 +720,70 @@
     }
     const k = pct > 0 ? "up" : pct < 0 ? "down" : "";
     const sgn = (v, d) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}`;
+    const money = (v) => `${sgn(v, Math.abs(v) >= 100 ? 0 : 2)} $`;
+    if (overlay) { overlay.zone = { side: p.side, entry: p.entry, tp: p.tp, sl: p.sl, price }; overlay.update(); }
+    const big = badgeUI().big;
+    const qty = p.size ? p.size / p.entry : null;
+    const atTp = qty && p.tp ? qty * (p.tp - p.entry) * dir : null, atSl = qty && p.sl ? qty * (p.sl - p.entry) * dir : null;
+    const liq = lev > 1 ? p.entry * (1 - dir / lev) : null;
+    const cell = (l, v, c) => `<span><small>${esc(l)}</small><b class="${c || ""}">${v}</b></span>`;
     badge.hidden = false;
-    badge.innerHTML = `<div class="pb-top"><span class="pb-side ${p.side}">${p.side === "long" ? "LONG" : "SHORT"}${p.lev ? ` ×${p.lev}` : ""}</span><span class="pb-k">${esc(_t("ТВХ"))} <b>${fmtP(p.entry)}</b></span>${hit ? `<span class="pb-hit ${hit}">${hit === "tp" ? _t("TP достигнут") : _t("SL достигнут")}</span>` : ""}</div>
-      <div class="pb-pnl ${k}"><b>${usd != null ? `${sgn(usd, Math.abs(usd) >= 100 ? 0 : 2)} $` : `${sgn(pct, 2)}%`}</b><span>${usd != null ? `${sgn(pct, 2)}%` : ""}${lev > 1 ? ` · ROE ${sgn(pct * lev, 1)}%` : ""}</span></div>
+    badge.classList.toggle("big", big);
+    badge.innerHTML = `<div class="pb-bar" data-pb="drag" title="${esc(_t("Перетащи, чтобы переместить"))}"><i class="pb-grip"></i><span class="pb-side ${p.side}">${p.side === "long" ? "LONG" : "SHORT"}${p.lev ? ` ×${p.lev}` : ""}</span><span class="pb-k">${esc(_t("ТВХ"))} <b>${fmtP(p.entry)}</b></span>${hit ? `<span class="pb-hit ${hit}">${hit === "tp" ? _t("TP достигнут") : _t("SL достигнут")}</span>` : ""}
+        <button type="button" class="pb-btn" data-pb="size" aria-label="${esc(big ? _t("Свернуть") : _t("Развернуть"))}">${big ? "–" : "+"}</button></div>
+      <div class="pb-pnl ${k}"><b>${usd != null ? money(usd) : `${sgn(pct, 2)}%`}</b><span>${usd != null ? `${sgn(pct, 2)}%` : ""}${lev > 1 ? ` · ROE ${sgn(pct * lev, 1)}%` : ""}</span></div>
       <div class="pb-row">${toTp != null ? `<span>${esc(_t("до TP"))} <b class="up">${sgn(toTp, 2)}%</b></span>` : ""}${toSl != null ? `<span>${esc(_t("до SL"))} <b class="down">${sgn(toSl, 2)}%</b></span>` : ""}${rr ? `<span>R:R <b>1 : ${rr.toFixed(1)}</b></span>` : ""}</div>
+      ${big ? `<div class="pb-grid">
+        ${cell(_t("Цена"), fmtP(price))}${cell(_t("Объём"), p.size ? fmtUsd(p.size) : "—")}${cell(_t("Плечо"), p.lev ? `×${p.lev}` : "—")}
+        ${cell("TP", p.tp ? fmtP(p.tp) : "—", "up")}${cell(_t("Прибыль на TP"), atTp != null ? money(atTp) : "—", "up")}${cell(_t("Ликвидация ≈"), liq ? fmtP(liq) : "—")}
+        ${cell("SL", p.sl ? fmtP(p.sl) : "—", "down")}${cell(_t("Убыток на SL"), atSl != null ? money(atSl) : "—", "down")}${cell(_t("Открыта"), p.ts ? new Date(p.ts).toLocaleString(I18.locale, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—")}
+      </div>` : ""}
       <div class="pb-src">${esc(S.ws && S.ws.ok ? _t("марк-цена Binance · обновляется каждую секунду") : _t("цена графика"))} · ${fmtP(price)}</div>`;
+    placeBadge(badge);
+  }
+  // ---- плашка позиции: перетаскивание и размер (запоминаются на устройстве)
+  function badgeUI() { try { return Object.assign({ big: false, x: null, y: null }, JSON.parse(localStorage.getItem("amq-pc-badge") || "{}")); } catch (e) { return { big: false, x: null, y: null }; } }
+  function saveBadgeUI(o) { try { localStorage.setItem("amq-pc-badge", JSON.stringify(Object.assign(badgeUI(), o))); } catch (e) { /* noop */ } }
+  function placeBadge(badge) {
+    const wrap = badge.parentElement, u = badgeUI();
+    if (!wrap || u.x == null) { badge.style.left = ""; badge.style.top = ""; badge.style.bottom = ""; return; }
+    const W = wrap.clientWidth, H = wrap.clientHeight, bw = badge.offsetWidth, bh = badge.offsetHeight;
+    badge.style.left = `${Math.max(4, Math.min(W - bw - 4, u.x * W))}px`;
+    badge.style.top = `${Math.max(4, Math.min(H - bh - 4, u.y * H))}px`;
+    badge.style.bottom = "auto";
+  }
+  function bindBadge() {
+    const badge = $("#pc-posbadge");
+    if (!badge || badge.dataset.bound) return;
+    badge.dataset.bound = "1";
+    badge.addEventListener("click", (e) => {
+      if (!e.target.closest('[data-pb="size"]')) return;
+      saveBadgeUI({ big: !badgeUI().big });
+      posTick(S.posLive ? S.posLive.price : S.cs.length ? S.cs[S.cs.length - 1].c : null);
+    });
+    badge.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest("button")) return;
+      const wrap = badge.parentElement;
+      if (!wrap) return;
+      e.preventDefault();
+      const wr = wrap.getBoundingClientRect(), br = badge.getBoundingClientRect();
+      const dx = e.clientX - br.left, dy = e.clientY - br.top;
+      badge.classList.add("dragging");
+      try { badge.setPointerCapture(e.pointerId); } catch (er) { /* noop */ }
+      const move = (ev) => {
+        const x = Math.max(4, Math.min(wr.width - br.width - 4, ev.clientX - wr.left - dx));
+        const y = Math.max(4, Math.min(wr.height - br.height - 4, ev.clientY - wr.top - dy));
+        badge.style.left = `${x}px`; badge.style.top = `${y}px`; badge.style.bottom = "auto";
+      };
+      const up = () => {
+        badge.classList.remove("dragging");
+        badge.removeEventListener("pointermove", move); badge.removeEventListener("pointerup", up); badge.removeEventListener("pointercancel", up);
+        const r = badge.getBoundingClientRect();
+        saveBadgeUI({ x: (r.left - wr.left) / wr.width, y: (r.top - wr.top) / wr.height });
+      };
+      badge.addEventListener("pointermove", move); badge.addEventListener("pointerup", up); badge.addEventListener("pointercancel", up);
+    });
+    badge.addEventListener("dblclick", (e) => { if (e.target.closest("button")) return; saveBadgeUI({ x: null, y: null }); placeBadge(badge); });
   }
   function startPosStream() {
     if (!S.pos || !S.open || S.ws || typeof WebSocket === "undefined") return;
@@ -1036,6 +1126,8 @@
   function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#pc-ai").hidden) closeAI(); else close(); }
   async function open(opts) {
     opts = opts || {};
+    // журнал и Pro Chart — полноэкранные окна: открытое одно закрывает другое
+    try { const j = document.getElementById("jr"); if (j && !j.hidden && window.Journal) window.Journal.close(); } catch (e) { /* noop */ }
     const el = shell();
     if (opts.symbol) S.sym = String(opts.symbol).toUpperCase().replace(/USDT$/, "");
     S.open = true;
