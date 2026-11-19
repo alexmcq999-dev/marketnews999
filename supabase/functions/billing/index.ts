@@ -125,7 +125,7 @@ async function telegramUpdate(u: any) {
     await tg("sendMessage", { chat_id: m.chat.id, text: "Условия и политика конфиденциальности: " + APP_URL() + "privacy.html" }).catch(() => null);
   } else if (text === "/start" && m.chat.type === "private") {
     await tg("sendMessage", {
-      chat_id: m.chat.id, text: "CANDEL — новости, сигналы, Pro Chart и торговый журнал.",
+      chat_id: m.chat.id, text: "CANDEL — новости, календарь событий, Pro Chart и торговый журнал.",
       reply_markup: { inline_keyboard: [[{ text: "Открыть приложение", web_app: { url: APP_URL() } }]] },
     }).catch(() => null);
   } else if (owner && m.chat.type === "private" && String(m.chat.id) !== owner && !text.startsWith("/")) {
