@@ -170,45 +170,38 @@
     const nowPct = pct(now);
 
     let rows = "";
+    const row = (name, ex, on, segs, stTxt, stCls) => `<div class="s-row ${on ? "on" : ""}">
+        <div class="s-name"><b>${esc(name)}</b><span class="s-ex">${esc(ex)}</span><span class="s-st2 ${stCls}">${esc(stTxt)}</span></div>
+        <div class="s-track" aria-hidden="true">${segs}</div>
+        <div class="s-st ${stCls}">${esc(stTxt)}</div>
+      </div>`;
     for (const mk of MARKETS) {
       const s = st[mk.id];
       const segs = s.iv.filter((x) => x.end > day0 && x.start < day1).map((x) => {
         const live = x.start <= now && now < x.end;
-        return `<span class="seg ${x.kind} ${mk.region} ${live ? "live" : ""}" style="left:${pct(x.start).toFixed(2)}%;width:${(pct(x.end) - pct(x.start)).toFixed(2)}%"></span>`;
+        return `<span class="seg ${x.kind} ${live ? "live" : ""}" style="left:${pct(x.start).toFixed(2)}%;width:${(pct(x.end) - pct(x.start)).toFixed(2)}%"></span>`;
       }).join("");
       let stTxt, stCls;
-      if (s.state === "open") { stCls = "open"; stTxt = `${_t("открыта · до")} ${hm(s.until)}`; }
-      else if (s.state === "ext") { stCls = "ext"; stTxt = `${s.label} · ${_t("до")} ${hm(s.until)}`; }
+      if (s.state === "open") { stCls = "open"; stTxt = `${_t("до")} ${hm(s.until)}`; }
+      else if (s.state === "ext") { stCls = "ext"; stTxt = `${s.label} · ${hm(s.until)}`; }
       else if (s.state === "break") { stCls = "break"; stTxt = `${_t("перерыв · с")} ${hm(s.next)}`; }
-      else { stCls = "closed"; stTxt = s.next ? `${_t("откр.")} ${dayLabel(s.next, now)}${hm(s.next)}` : _t("закрыта"); }
-      rows += `<div class="s-row">
-        <div class="s-name"><b>${mk.flag} ${esc(mk.name)}</b><span class="s-st ${stCls}">${esc(stTxt)}</span></div>
-        <div class="s-track" aria-hidden="true">${segs}</div>
-      </div>`;
+      else { stCls = "closed"; stTxt = s.next ? `${dayLabel(s.next, now)}${hm(s.next)}` : _t("закрыта"); }
+      rows += row(mk.name, mk.ex, s.state === "open", segs, stTxt, stCls);
     }
-    rows += `<div class="s-row">
-      <div class="s-name"><b>₿ ${_t("Крипта")}</b><span class="s-st open">24/7</span></div>
-      <div class="s-track" aria-hidden="true"><span class="seg main crypto live" style="left:0;width:100%"></span></div>
-    </div>`;
+    rows += row(_t("Крипта"), "24/7", true, `<span class="seg main live" style="left:0;width:100%"></span>`, _t("всегда открыта"), "open");
 
-    const ticks = [0, 6, 12, 18, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${String(h).padStart(2, "0")}</span>`).join("");
+    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => `<span style="left:${(h / 24) * 100}%">${String(h).padStart(2, "0")}</span>`).join("");
 
     el.innerHTML = `
-      <div class="sess-now glass tone-${sum.tone}">
-        <div class="sess-kicker"><span class="pulse"></span>${_t("Сейчас активно ·")} ${hm(now)} ${_t("МСК")}</div>
-        <div class="sess-title">${esc(sum.title)}</div>
-        <p>${esc(sum.text)}</p>
-        ${nx ? `<div class="sess-next">${_t("Далее")} ${esc(nx.text)} · ${hm(nx.t)} · ${_t("через")} ${dur(nx.t - now)}</div>` : ""}
+      <div class="sess-head">
+        <div><h2 class="sess-h">${_t("Торговые сессии")}</h2>
+          <p class="sess-sum tone-${sum.tone}">${_t("Сейчас")} <b>${esc(sum.title)}</b> — ${esc(sum.text.charAt(0).toLowerCase() + sum.text.slice(1))}${nx ? ` ${_t("Далее")} ${esc(nx.text)} ${_t("в")} ${hm(nx.t)}, ${_t("через")} ${dur(nx.t - now)}.` : ""}</p></div>
+        <div class="s-legend"><span><i class="lg on"></i>${_t("Открыта")}</span><span><i class="lg main"></i>${_t("Основные часы")}</span><span><i class="lg ext"></i>${_t("Доп. сессии")}</span></div>
       </div>
-      <div class="glass sess-card">
-        <div class="s-grid" style="--nowf:${(nowPct / 100).toFixed(4)}">
-          ${rows}
-          <div class="s-axis"><div class="s-ticks">${ticks}</div></div>
-          <div class="s-nowline" aria-hidden="true"><span>${hm(now)}</span></div>
-        </div>
-        <div class="s-legend">
-          <span><i class="lg asia"></i>${_t("Азия")}</span><span><i class="lg ru"></i>${_t("Россия")}</span><span><i class="lg eu"></i>${_t("Европа")}</span><span><i class="lg us"></i>${_t("США")}</span><span><i class="lg ext"></i>${_t("доп. сессии")}</span>
-        </div>
+      <div class="s-grid" style="--nowf:${(nowPct / 100).toFixed(4)}">
+        <div class="s-axis"><span class="s-tz">${_t("МСК")}</span><div class="s-ticks">${ticks}</div><span></span></div>
+        ${rows}
+        <div class="s-nowline" aria-hidden="true"><span>${hm(now)}</span></div>
       </div>
       <p class="hint">${_t("Шкала — сутки по московскому времени. Летнее и зимнее время учитываются автоматически, праздники — только для NYSE. У Мосбиржи бывают торги выходного дня, здесь они не показаны.")}</p>`;
   }

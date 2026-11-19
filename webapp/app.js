@@ -145,7 +145,7 @@
       $("#updated-text").textContent = _t("Нет связи с сервером данных");
       $(".live-dot").classList.add("stale");
       if (!state.data) {
-        $("#ov-main").innerHTML = `<div class="glass card empty">${_t("Данные ещё не опубликованы.")}<br>${_t("Запусти workflow в GitHub Actions и открой приложение снова.")}</div><div class="section-title">${_t("Торговые сессии")}</div><div id="sessions"></div>`;
+        $("#ov-main").innerHTML = `<div class="glass card empty">${_t("Данные ещё не опубликованы.")}<br>${_t("Запусти workflow в GitHub Actions и открой приложение снова.")}</div><div id="sessions" class="sess-wrap"></div>`;
         renderSessions();
       }
     } finally {
@@ -179,6 +179,13 @@
 
   // ---------------------------------------------------------------- обзор
   // ---------------------------------------------------------------- пульс: BTC онлайн, страх/жадность, общий фон
+  // ---------------------------------------------------------------- рынок сейчас: строка BTC · страх · доминация · индексы
+  const FNG_COND = (v) => (v == null ? null : v <= 25 ? ["Страх на рынке", "down"] : v <= 45 ? ["Осторожность", "down"] : v < 55 ? ["Нейтрально", ""] : v < 75 ? ["Аппетит к риску", "up"] : ["Эйфория", "up"]);
+  const SIMPLE = {
+    down: "инвесторы осторожничают. В такие дни цена часто резко ходит в обе стороны — уменьши размер сделок и не входи «на эмоциях».",
+    "": "рынок без явного настроения. Лучше дождаться понятного движения и торговать по плану.",
+    up: "покупатели активны. Не догоняй рост — на эйфории рынок часто разворачивается.",
+  };
   function renderPulse() {
     const d = state.data || {};
     const box = $("#ov-pulse");
@@ -186,30 +193,72 @@
     const live = state.live.BTC;
     const price = live ? live.price : m.price, ch = live ? live.chg : m.chg;
     const f = ((d.sentiment || {}).fng || {}).crypto;
-    let h = `<div class="pulse-grid">
-      <button class="tile glass pressable" data-asset="BTC" aria-label="${_t("Биткоин, открыть график")}">
-        <div class="k">${_t("Биткоин")}</div>
-        <div class="v">${price != null ? "$" + fmtNum(price, 0) : "—"}</div>
-        <div class="s">${chg(ch) || "&nbsp;"} <span class="pro-only">${_t("за 24ч")}</span></div>
-      </button>
-      <div class="tile glass" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${f ? f.value : ""}">
-        <div class="k">${_t("Настроение")}</div>
-        <div class="v">${f ? f.value : "—"}<small style="font-size:14px;color:var(--text-3);font-weight:600"> /100</small></div>
-        <div class="s">${f ? esc(_t(f.rating_ru)) : _t("нет данных")}</div>
-        <div class="bar"><i style="width:${f ? Math.max(3, Math.min(100, f.value)) : 0}%"></i></div>
-      </div>
-    </div>
-    <p class="explain simple-only">${_t("Настроение — индекс страха и жадности:")} <b>0–25</b> ${_t("паника,")} <b>75–100</b> ${_t("эйфория. На крайностях рынок часто разворачивается.")}</p>`;
-    let mh = "";
-    // текст «Что происходит» бот пишет по-русски; на других языках показываем только если есть перевод
-    const mi = d.mood_i18n || {};
-    const mood = I18.lang === "ru" ? d.mood : mi[I18.lang] || mi.en || "";
-    if (mood) {
-      mh += `<div class="mood glass" style="margin-top:12px"><div class="label"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 8.5-2 5-5 2 2-5z" fill="currentColor"/></svg>${_t("Что происходит")}${d.news_updated ? " · " + fmtTime(d.news_updated, !isToday(d.news_updated)) : ""}</div><p>${esc(mood)}</p></div>`;
+    const g = state.global, p = (g && g.market_cap_percentage) || null;
+    const dom = p ? p.btc : null;
+    const fv = f ? Math.max(0, Math.min(100, f.value)) : null;
+    const fc = f ? (f.value <= 45 ? "down" : f.value >= 55 ? "up" : "") : "";
+    const mk = (d.markets || []).filter((x) => x.name !== "BTC").slice(0, 4);
+    let domBar = "";
+    if (p) {
+      const st = (p.usdt || 0) + (p.usdc || 0), oth = Math.max(0, 100 - p.btc - (p.eth || 0) - st);
+      domBar = `<span class="comp" aria-hidden="true"><i style="width:${p.btc.toFixed(1)}%"></i><i style="width:${(p.eth || 0).toFixed(1)}%"></i><i style="width:${st.toFixed(1)}%"></i><i style="width:${oth.toFixed(1)}%"></i></span>`;
     }
-    box.innerHTML = h;
-    $("#ov-mood").innerHTML = mh;
-    box.querySelectorAll(".tile[data-asset]").forEach((b) => b.addEventListener("click", () => { state.asset = b.dataset.asset; switchTab("charts"); }));
+    box.innerHTML = `<section class="strip" aria-label="${_t("Рынок сейчас")}">
+      <button class="st st-btc" data-asset="BTC" aria-label="${_t("Биткоин, открыть график")}">
+        <span class="st-k"><b>Bitcoin</b>BTC · USD</span>
+        <span class="st-price"><b>${price != null ? fmtNum(price, price >= 1000 ? 1 : 2) : "—"}</b>${chg(ch)}</span>
+        <span class="st-sub">${_t("изменение за 24ч")}</span>
+      </button>
+      <div class="st" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${f ? f.value : ""}" aria-label="${_t("Страх и жадность")}">
+        <span class="st-k">${_t("Страх и жадность · крипта")}</span>
+        <span class="st-v"><b>${f ? f.value : "—"}</b><em class="${fc}">${f ? esc(_t(f.rating_ru)) : _t("нет данных")}</em></span>
+        <span class="fg-scale" aria-hidden="true">${fv != null ? `<i style="left:${fv}%"></i>` : ""}</span>
+        <span class="st-sub">${f ? `${_t("вчера")} ${f.prev} · ${_t("неделю назад")} ${f.week}` : ""}</span>
+      </div>
+      <button class="st" data-asset="BTC.D" aria-label="${_t("Доминация BTC, открыть график")}">
+        <span class="st-k">${_t("Доминация BTC")}</span>
+        <span class="st-v"><b>${dom != null ? dom.toFixed(1).replace(".", I18.lang === "en" || I18.lang === "ko" || I18.lang === "zh" ? "." : ",") + "%" : "—"}</b></span>
+        ${domBar || `<span class="comp" aria-hidden="true"></span>`}
+        <span class="st-sub">${_t("доля в капитализации · CoinGecko")}</span>
+      </button>
+      <div class="st st-mk">${mk.map((q) => `<button class="mk" data-asset="${esc(q.name)}" aria-label="${_t("Открыть график")} ${esc(q.name)}"><span>${esc(q.name)}</span><b>${fmtNum(q.price, q.dec)}</b>${chg(q.chg)}</button>`).join("")}</div>
+    </section>
+    <p class="explain simple-only">${_t("Настроение — индекс страха и жадности:")} <b>0–25</b> ${_t("паника,")} <b>75–100</b> ${_t("эйфория. На крайностях рынок часто разворачивается.")}</p>`;
+    box.querySelectorAll("[data-asset]").forEach((b) => b.addEventListener("click", () => { state.asset = b.dataset.asset; switchTab("charts"); }));
+    renderBrief();
+  }
+
+  // ---------------------------------------------------------------- брифинг: что происходит + главные новости
+  function renderBrief() {
+    const d = state.data || {};
+    const mi = d.mood_i18n || {};
+    // текст «Что происходит» бот пишет по-русски; на других языках показываем только если есть перевод
+    const mood = I18.lang === "ru" ? d.mood : mi[I18.lang] || mi.en || "";
+    const f = ((d.sentiment || {}).fng || {}).crypto;
+    const cond = FNG_COND(f ? f.value : null);
+    const ru = I18.lang === "ru";
+    const BIAS = { bullish: [_t("Бычья"), "up"], bearish: [_t("Медвежья"), "down"], mixed: [_t("Смешанная"), ""] };
+    const news = (d.news || []).slice().sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 4);
+    if (!mood && !news.length) { $("#ov-mood").innerHTML = ""; return; }
+    let head = mood, rest = "";
+    const mm = mood && mood.match(/^(.{20,180}?[.!?])\s+([\s\S]+)$/);
+    if (mm) { head = mm[1]; rest = mm[2]; }
+    const rows = news.map((n) => {
+      const tr = ru ? null : ((n.i18n || {})[I18.lang] || (n.i18n || {}).en || null);
+      const title = ru ? n.title : (tr && tr.title) || n.title_en || n.title;
+      const b = BIAS[n.bias];
+      const src = (n.links || []).map((l) => l.outlet).filter(Boolean).slice(0, 2).join(", ");
+      const when = isToday(n.ts) ? fmtTime(n.ts) : new Date(n.ts).toLocaleDateString(LOCALE, { timeZone: TZ, day: "numeric", month: "short" });
+      return `<button class="br-row" data-go="news"><span class="br-t">${when}</span><span class="br-h">${esc(title)}${src ? `<small>${esc(src)}</small>` : ""}</span>${b ? `<span class="br-b ${b[1]}">${esc(b[0])}</span>` : "<span></span>"}</button>`;
+    }).join("");
+    $("#ov-mood").innerHTML = `<article class="brief" aria-label="${_t("Что происходит на рынке")}">
+      <div class="br-meta"><span class="br-k">${_t("Брифинг")}</span>${d.news_updated ? `<span>${fmtTime(d.news_updated, !isToday(d.news_updated))} ${_t("МСК")}</span>` : ""}${cond ? `<span class="br-cond ${cond[1]}">${_t(cond[0])}</span>` : ""}</div>
+      ${head ? `<h2 class="br-title">${esc(head)}</h2>` : ""}
+      ${rest ? `<p class="br-text">${esc(rest)}</p>` : ""}
+      ${cond ? `<div class="br-simple simple-only"><b>${_t("Простыми словами:")}</b> ${_t(SIMPLE[cond[1]])}</div>` : ""}
+      ${rows ? `<div class="br-list">${rows}</div>` : ""}
+    </article>`;
+    $("#ov-mood").querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.go)));
   }
 
   // BTC онлайн (Binance, без ключей) — обновляем каждые 20 секунд
@@ -272,11 +321,12 @@
     if (!g || !box) return;
     const p = g.market_cap_percentage || {};
     const btc = p.btc || 0, eth = p.eth || 0, st = (p.usdt || 0) + (p.usdc || 0), oth = Math.max(0, 100 - btc - eth - st);
-    const parts = [["BTC", btc, "#ffffff"], ["ETH", eth, "#9e9e9e"], [_t("Стейблы"), st, "#5c5c5c"], [_t("Остальные"), oth, "#2e2e2e"]];
-    box.innerHTML = `<div class="pro-only">
+    const parts = [["BTC", btc, "#F2F0EC"], ["ETH", eth, "#8E9196"], [_t("Стейблкоины"), st, "#5E6167"], [_t("Остальные"), oth, "#34363B"]];
+    if (state.data) renderPulse();
+    box.innerHTML = `<div>
       <div class="dom-split">${parts.map(([, v, c]) => `<i style="width:${v.toFixed(2)}%;background:${c}"></i>`).join("")}</div>
-      <div class="dom-legend">${parts.map(([n, v, c]) => `<span style="--c:${c}">${n} ${v.toFixed(1)}%</span>`).join("")}</div>
-      <p class="hint" style="margin:6px 0 0">${_t("Структура всего рынка (")}${Math.round(g.active_cryptocurrencies || 0).toLocaleString(LOCALE)} ${_t("монет, CoinGecko). TradingView считает доминацию по топ-125 монетам — поэтому цифра выше.")}</p>
+      <div class="dom-legend">${parts.map(([n, v, c]) => `<span style="--c:${c}">${n}<b>${v.toFixed(1)}%</b></span>`).join("")}</div>
+      <p class="hint pro-only" style="margin:6px 0 0">${_t("Структура всего рынка (")}${Math.round(g.active_cryptocurrencies || 0).toLocaleString(LOCALE)} ${_t("монет, CoinGecko). TradingView считает доминацию по топ-125 монетам — поэтому цифра выше.")}</p>
     </div>`;
   }
 
@@ -287,16 +337,7 @@
     let h = "";
 
 
-    h += `<div class="section-title">${_t("Торговые сессии")}</div><div id="sessions"></div>`;
-
-    if ((d.markets || []).length) {
-      h += `<div class="section-title">${_t("Рынки")} <small class="simple-only">${_t("нажми — откроется график")}</small></div><div class="quotes">`;
-      for (const m of d.markets) {
-        h += `<button class="quote glass pressable ${trendClass(m.chg)}" data-asset="${esc(m.name)}" aria-label="${_t("Открыть график")} ${esc(m.name)}">
-          <span class="glow"></span><span class="n">${esc(m.name)}</span><span class="p">${fmtNum(m.price, m.dec)}</span>${chg(m.chg)}</button>`;
-      }
-      h += `</div>`;
-    }
+    h += `<div id="sessions" class="sess-wrap"></div>`;
 
     const f = s.fng || {};
     if (f.stocks || f.crypto) {

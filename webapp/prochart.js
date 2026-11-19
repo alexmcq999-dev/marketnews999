@@ -19,7 +19,7 @@
   const ASSETS = ["BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "SUI", "HYPE", "LINK", "AVAX"];
   const TFS = [["5m", 300, "5м"], ["15m", 900, "15м"], ["1h", 3600, "1ч"], ["4h", 14400, "4ч"], ["1d", 86400, "1Д"]];
   const LIMIT = 300;
-  const C = { up: "#3ddc84", down: "#ff5a52", gold: "#f5c451", text: "rgba(250,250,250,.62)", hair: "rgba(255,255,255,.06)" };
+  const C = { up: "#3ddc84", down: "#ff5a52", gold: "#C8B08A", text: "rgba(250,250,250,.62)", hair: "rgba(255,255,255,.06)" };
 
   // ================================================================ биржи
   const typ = (h, l, c) => (h + l + c) / 3;
@@ -302,13 +302,13 @@
             if (yTop == null || yBot == null) continue;
             const hgt = Math.max(1, yBot - yTop - 1), w = (P.vol[j] / P.max) * W, wb = P.vol[j] ? (P.buy[j] / P.vol[j]) * w : 0;
             const inVA = j >= P.vaLo && j <= P.vaHi;
-            ctx.fillStyle = j === P.pocI ? "rgba(245,196,81,.55)" : inVA ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.07)";
+            ctx.fillStyle = j === P.pocI ? "rgba(200,176,138,.55)" : inVA ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.07)";
             ctx.fillRect(x0 - w, yTop, w, hgt);
             if (j !== P.pocI) { ctx.fillStyle = inVA ? "rgba(61,220,132,.16)" : "rgba(61,220,132,.07)"; ctx.fillRect(x0 - w, yTop, wb, hgt); }
           }
           const yPoc = s.priceToCoordinate(P.poc);
           if (yPoc != null) {
-            ctx.strokeStyle = "rgba(245,196,81,.7)"; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+            ctx.strokeStyle = "rgba(200,176,138,.7)"; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
             ctx.beginPath(); ctx.moveTo(0, Math.round(yPoc) + 0.5); ctx.lineTo(mediaSize.width, Math.round(yPoc) + 0.5); ctx.stroke(); ctx.setLineDash([]);
           }
         }
@@ -497,7 +497,7 @@
     ser.vol = chart.addSeries(LW.HistogramSeries, { priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false }, 1);
     ser.volSpot = chart.addSeries(LW.HistogramSeries, { color: "rgba(255,255,255,.38)", priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false }, 1);
     ser.cvd = chart.addSeries(LW.LineSeries, { color: "#e6e6e6", lineWidth: 1.5, priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: true, title: "CVD" }, 2);
-    ser.oi = chart.addSeries(LW.AreaSeries, { lineColor: C.gold, topColor: "rgba(245,196,81,.22)", bottomColor: "rgba(245,196,81,0)", lineWidth: 1.5, priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: true, title: "OI" }, 3);
+    ser.oi = chart.addSeries(LW.AreaSeries, { lineColor: C.gold, topColor: "rgba(200,176,138,.22)", bottomColor: "rgba(200,176,138,0)", lineWidth: 1.5, priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: true, title: "OI" }, 3);
     layoutPanes();
     chart.subscribeCrosshairMove((p) => {
       const i = p && p.time != null ? idxOf(p.time) : -1;

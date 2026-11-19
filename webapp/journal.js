@@ -1134,7 +1134,7 @@
     if (tpChart) { try { tpChart.remove(); } catch (e) { /* noop */ } }
     tpChart = LW.createChart(box, {
       autoSize: true,
-      layout: { background: { type: "solid", color: "transparent" }, textColor: "rgba(250,250,250,.55)", fontSize: 11, fontFamily: "Manrope, system-ui, sans-serif" },
+      layout: { background: { type: "solid", color: "transparent" }, textColor: "rgba(250,250,250,.55)", fontSize: 11, fontFamily: "Inter, system-ui, sans-serif" },
       grid: { vertLines: { color: "rgba(255,255,255,.04)" }, horzLines: { color: "rgba(255,255,255,.04)" } },
       rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
       crosshair: { vertLine: { color: "rgba(255,255,255,.25)", labelBackgroundColor: "#1c1c1e" }, horzLine: { color: "rgba(255,255,255,.25)", labelBackgroundColor: "#1c1c1e" } },
@@ -1502,7 +1502,7 @@
 
   function onboarding() {
     return `<div class="jr-onb">
-      <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#f5c451" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="jr-onb-ic"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 15l3-3 2 2 3-4" fill="none" stroke="#C8B08A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h2>${esc(_t("Твой торговый журнал"))}</h2>
       <p>${esc(_t("Подключи биржу — журнал сам соберёт все закрытые позиции и покажет, где ты зарабатываешь, а где теряешь: win rate, profit factor, просадку, лучшие монеты и часы, ошибки вроде отыгрыша."))}</p>
       <div class="jr-exs">${EX_ORDER.map((k) => `<button class="glass" data-j="connect" data-v="${k}"><b>${esc(EX[k].name)}</b><small>${k === "hyperliquid" ? esc(_t("по адресу кошелька")) : esc(_t("read-only ключ"))}</small></button>`).join("")}</div>
