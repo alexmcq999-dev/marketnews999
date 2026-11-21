@@ -941,3 +941,17 @@ html.wl-on, html.wl-on body { overflow: hidden; }
   .wl-foot a { margin-left: 0; }
 }
 @media (max-width: 420px) { .wl-top .wl-cta { display: none; } .wl-b-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* «Что нового» */
+.wn { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; padding: 20px; opacity: 0; transition: opacity .2s ease; }
+.wn.show { opacity: 1; }
+.wn-bg { position: absolute; inset: 0; background: rgba(5, 6, 8, .72); }
+.wn-card { position: relative; width: min(460px, 100%); box-sizing: border-box; padding: 28px 26px 22px; border-radius: 20px; background: #13161A; color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px -20px rgba(0,0,0,.8); font-family: var(--font); max-height: calc(100vh - 40px); overflow-y: auto; }
+.wn-card h2 { margin: 14px 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.wn-card p { margin: 0 0 10px; font-size: 14px; line-height: 1.55; color: var(--text-2); }
+.wn-card ul { margin: 4px 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.wn-card li { position: relative; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+.wn-card li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.wn-card .wn-note { font-size: 12.5px; color: var(--text-m); }
+.wn-ok { width: 100%; height: 46px; margin-top: 6px; border: 0; border-radius: 12px; background: var(--text); color: #090B0F; font: 600 15px var(--font); cursor: pointer; }

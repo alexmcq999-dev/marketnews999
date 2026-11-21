@@ -820,6 +820,7 @@
     });
     $("#tabbar").style.setProperty("--i", Math.max(0, btns.findIndex((b) => b.dataset.tab === name)));
     window.scrollTo(0, 0);
+    if (window.CandelAnalytics) window.CandelAnalytics.hit(`#${name}`, name);
     if (name === "charts") { renderChartControls(); renderChart(); }
     haptic();
   }
@@ -949,7 +950,7 @@
     navigator.serviceWorker.register("sw.js", { scope: appDir }).catch(() => { /* без офлайна */ });
   }
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; renderPromo(); });
-  window.addEventListener("appinstalled", () => { installEvt = null; LS.set("amq-installed", "1"); renderPromo(); });
+  window.addEventListener("appinstalled", () => { installEvt = null; LS.set("amq-installed", "1"); renderPromo(); if (window.CandelAnalytics) window.CandelAnalytics.goal("pwa_installed"); });
 
   let pushState = "loading";  // loading | off | on | denied | unsupported | need-install
   function initPush() {

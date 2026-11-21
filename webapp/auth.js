@@ -257,6 +257,12 @@
         mode: document.documentElement.dataset.mode || null, last_seen: new Date().toISOString(),
       });
     } catch (e) { /* таблицы может не быть — вход всё равно работает */ }
+    // откуда пришёл человек: первый источник пишем один раз, последний — обновляем (колонки из миграции 20261121_sources.sql)
+    const CA = window.CandelAnalytics;
+    if (CA) {
+      try { const f = CA.first(); if (f) await AUTH.sb.from("profiles").update({ first_source: f }).eq("id", u.id).is("first_source", null); } catch (e) { /* noop */ }
+      try { const l = CA.last(); if (l) await AUTH.sb.from("profiles").update({ last_source: l }).eq("id", u.id); } catch (e) { /* noop */ }
+    }
   }
   AUTH.saveSettings = () => { if (AUTH.user) saveProfile(AUTH.user); };
 
@@ -303,7 +309,7 @@
     AUTH.user = u || null;
     if (changed) { planReq = null; AUTH.plan = "free"; AUTH.planSource = null; planUi(); }
     renderProfile();
-    if (u) { hideLogin(); if (changed) { saveProfile(u); AUTH.loadPlan().then(renderProfile); AUTH.listeners.forEach((fn) => { try { fn(u); } catch (e) { /* noop */ } }); } }
+    if (u) { hideLogin(); if (changed) { if (window.CandelAnalytics) { window.CandelAnalytics.user(u.id); window.CandelAnalytics.goal("login"); } saveProfile(u); AUTH.loadPlan().then(renderProfile); AUTH.listeners.forEach((fn) => { try { fn(u); } catch (e) { /* noop */ } }); } }
     else if (!inTG) showLogin();
   }
 

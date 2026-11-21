@@ -1169,6 +1169,7 @@
   function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#pc-ai").hidden) closeAI(); else close(); }
   async function open(opts) {
     opts = opts || {};
+    if (window.CandelAnalytics) window.CandelAnalytics.goal("prochart_open");
     // журнал и Pro Chart — полноэкранные окна: открытое одно закрывает другое
     try { const j = document.getElementById("jr"); if (j && !j.hidden && window.Journal) window.Journal.close(); } catch (e) { /* noop */ }
     const el = shell();

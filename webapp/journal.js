@@ -621,6 +621,7 @@
     if (ex === "hyperliquid") c.label = `Hyperliquid ${conn.address.slice(0, 6)}…${conn.address.slice(-4)}`;
     await kvSet(`secret:${c.id}`, await seal(conn));
     S.conns.push(c);
+    if (window.CandelAnalytics) window.CandelAnalytics.goal("exchange_connected", { exchange: ex });
     await saveConns();
     return c;
   }
@@ -1410,7 +1411,7 @@
     else if (act === "settings") openSheet("settings");
     else if (act === "connect") openSheet("connect", v);
     else if (act === "sheet-close") closeSheet();
-    else if (act === "demo") { S.demo = true; render(); }
+    else if (act === "demo") { S.demo = true; render(); if (window.CandelAnalytics) window.CandelAnalytics.goal("journal_demo"); }
     else if (act === "exit-demo") { S.demo = false; render(); }
     else if (act === "period") { S.period = +v; try { localStorage.setItem("amq-jr-period", v); } catch (er) { /* noop */ } render(); }
     else if (act === "exf") { S.exFilter = v; render(); }
@@ -1759,6 +1760,7 @@
   // ---------------------------------------------------------------- открыть / закрыть
   function onBack() { if (document.documentElement.classList.contains("pro-open")) return; if (!$("#jr-sheet").hidden) closeSheet(); else if (S.view === "trade") { S.view = S.backView || "trades"; render(); } else close(); }
   async function open() {
+    if (window.CandelAnalytics) window.CandelAnalytics.goal("journal_open");
     try { const pc = document.getElementById("pc"); if (pc && !pc.hidden && window.ProChart) window.ProChart.close(); } catch (e) { /* noop */ }
     const el = shell();
     S.open = true;

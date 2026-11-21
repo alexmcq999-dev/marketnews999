@@ -21,7 +21,7 @@
 <body>
 <main>
   <h1>CANDEL</h1>
-  <small>Last updated / Обновлено: 2026-10-21</small>
+  <small>Last updated / Обновлено: 2026-11-21</small>
   <nav><a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Use</a><a href="#pro">CANDEL Pro</a><a href="#ru">Русский</a></nav>
 
   <h2 id="privacy">Privacy Policy</h2>
@@ -32,13 +32,14 @@
     <li><b>App settings</b>: interface language and mode (Beginner/Advanced), last visit time.</li>
     <li><b>AI assistant usage</b>: the number of questions per day (for limits). Questions and a snapshot of the chart are sent to an AI model provider to generate the answer and are not stored by us.</li>
     <li><b>Push notifications</b> (only if you enable them): a push subscription identifier via OneSignal.</li>
+    <li><b>Usage statistics</b>: pages and sections you open, the source of your visit (UTM tags, referring site), device and browser type — via Yandex Metrica, without session recording. The source of your first visit is also saved to your profile when you sign in.</li>
   </ul>
   <h3>Trading journal</h3>
   <p>If you connect an exchange to the trading journal, your read-only API key (or Hyperliquid wallet address) is stored <b>only on your device</b>, encrypted in the browser storage. Requests to the exchange are signed on your device. For BingX and Bitunix, which block browser requests, the signed request (public API key and a one-time signature, never the secret) is forwarded through our server without being stored. Your trades, tags and notes stay on your device; only when you ask for an AI review is an anonymous summary of your statistics sent to the AI model provider.</p>
   <h3>How we use it</h3>
   <p>Only to sign you in, keep your settings, enforce fair-use limits, provide a subscription if you buy one, and send notifications you enabled. We do not sell your data and do not use it for advertising.</p>
   <h3>Processors</h3>
-  <p>Supabase (authentication and database), Google and Telegram (sign-in), Telegram Stars and Crypto Pay (payments — we receive only the payment status, amount and a transaction ID), OpenRouter (AI answers), OneSignal (push notifications), GitHub Pages (hosting). Market data is loaded directly by your device from public exchange APIs and TradingView widgets.</p>
+  <p>Supabase (authentication and database), Google and Telegram (sign-in), Telegram Stars and Crypto Pay (payments — we receive only the payment status, amount and a transaction ID), OpenRouter (AI answers), Yandex Metrica (usage statistics), OneSignal (push notifications), GitHub Pages (hosting). Market data is loaded directly by your device from public exchange APIs and TradingView widgets.</p>
   <h3>Your rights</h3>
   <p>You can sign out at any time and request deletion of your account and data by writing to the CANDEL bot in Telegram. We delete it within 30 days.</p>
 
@@ -63,9 +64,9 @@
 
   <hr>
   <h2 id="ru">Политика конфиденциальности и условия (кратко)</h2>
-  <p><b>Что собираем:</b> при входе через Telegram или Google — имя, username, ссылку на фото, Telegram ID или email; настройки приложения (язык, режим); количество вопросов ИИ в день. Вопросы к ИИ и снимок графика отправляются провайдеру ИИ только для ответа и у нас не хранятся. Если включишь уведомления — идентификатор подписки OneSignal.</p>
+  <p><b>Что собираем:</b> при входе через Telegram или Google — имя, username, ссылку на фото, Telegram ID или email; настройки приложения (язык, режим); количество вопросов ИИ в день. Вопросы к ИИ и снимок графика отправляются провайдеру ИИ только для ответа и у нас не хранятся. Если включишь уведомления — идентификатор подписки OneSignal. Статистику посещений — какие разделы открываются, откуда пришёл визит (UTM-метки, сайт-источник), тип устройства и браузера — через Яндекс Метрику, без записи сеансов; источник первого визита сохраняется в профиле при входе.</p>
   <p><b>Зачем:</b> только для входа, сохранения настроек, лимитов, подписки и уведомлений. Данные не продаём и не используем для рекламы.</p>
-  <p><b>Сервисы:</b> Supabase, Google, Telegram, Telegram Stars и Crypto Pay (оплата — получаем только статус, сумму и ID платежа), OpenRouter, OneSignal, GitHub Pages. Котировки телефон загружает напрямую с публичных API бирж и TradingView.</p>
+  <p><b>Сервисы:</b> Supabase, Google, Telegram, Telegram Stars и Crypto Pay (оплата — получаем только статус, сумму и ID платежа), OpenRouter, Яндекс Метрика, OneSignal, GitHub Pages. Котировки телефон загружает напрямую с публичных API бирж и TradingView.</p>
   <p><b>Торговый журнал:</b> API-ключ биржи (только чтение) или адрес кошелька Hyperliquid хранится только на твоём устройстве в зашифрованном виде, запросы к бирже подписываются на устройстве. Для BingX и Bitunix подписанный запрос (публичный ключ и одноразовая подпись, без секрета) пересылается через наш сервер и не сохраняется. Сделки, теги и заметки остаются на устройстве; для ИИ-разбора отправляется только сводка статистики.</p>
   <p><b>CANDEL Pro:</b> Pro Chart, ИИ-ассистент с повышенным лимитом и ИИ-разбор журнала. Цена — $29.9 в месяц (1500 звёзд в Telegram). Первые 3 дня — бесплатно, один раз на аккаунт и без оплаты: когда пробный период закончится, PRO просто выключится, если не оформить подписку. В Telegram — подписка за звёзды Telegram, продлевается автоматически каждые 30 дней, отменить можно в Настройках Telegram → Мои звёзды (доступ сохраняется до конца оплаченного периода). На сайте можно оплатить в USDT через Crypto Pay (@CryptoBot): каждый платёж добавляет 30 дней, без автопродления. Подписка привязана к аккаунту и работает и в Telegram, и на сайте. Вопросы и возвраты — команда /paysupport в боте CANDEL: если платная функция не заработала, вернём оплату за текущий период.</p>
   <p><b>Удаление:</b> напиши боту CANDEL в Telegram — удалим аккаунт и данные в течение 30 дней.</p>

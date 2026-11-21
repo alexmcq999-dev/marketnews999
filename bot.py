@@ -825,12 +825,12 @@ def previous_news() -> dict:
     return {k: d.get(k) for k in ("news", "mood", "mood_i18n", "news_updated", "news_since") if k in d}
 
 
-def send_push(title: dict, body: dict, path: str = "") -> None:
+def send_push(title: dict, body: dict, path: str = "", campaign: str = "digest") -> None:
     """Пуш в приложение CANDEL (OneSignal). title/body: {"ru": ..., "en": ...}. Без секретов — молча пропускаем."""
     app_id, key = os.getenv("ONESIGNAL_APP_ID"), os.getenv("ONESIGNAL_API_KEY")
     if not app_id or not key:
         return
-    url = (os.getenv("WEBAPP_URL") or "").rstrip("/") + "/" + path
+    url = with_utm((os.getenv("WEBAPP_URL") or "").rstrip("/") + "/" + path, "push", "onesignal", campaign)
     try:
         r = requests.post("https://api.onesignal.com/notifications?c=push", timeout=HTTP_TIMEOUT,
                           headers={"Authorization": f"Key {key}", "Content-Type": "application/json"},
@@ -910,7 +910,9 @@ def export_site(out_dir: str, now: datetime, payload: dict) -> None:
                    "supabaseUrl": (os.getenv("SUPABASE_URL") or "").rstrip("/"),
                    "supabaseKey": os.getenv("SUPABASE_ANON_KEY", ""), "tgBotId": os.getenv("TG_BOT_ID", ""),
                "premium": "paid" if (os.getenv("PREMIUM_MODE") or "").strip().lower() == "paid" else "open",
-                   "appUrl": (os.getenv("WEBAPP_URL") or "").strip()}
+                   "appUrl": (os.getenv("WEBAPP_URL") or "").strip(),
+                   # Яндекс Метрика — номер счётчика публичный (виден в коде любого сайта со счётчиком)
+                   "ym": re.sub(r"\D", "", os.getenv("YM_COUNTER_ID") or "")}
             html = html.replace("<!--APP_CONFIG-->", f"<script>window.APP_CONFIG={json.dumps(cfg)}</script>")
             # ссылки для превью (og:url, og:image) — на текущий адрес приложения
             app_url = (os.getenv("WEBAPP_URL") or "").strip()
@@ -941,11 +943,21 @@ def tg_webapp_url() -> str:
     return (os.getenv("TG_WEBAPP_URL") or os.getenv("WEBAPP_URL") or "").strip()
 
 
+def with_utm(url: str, source: str, medium: str, campaign: str = "") -> str:
+    """Добавляет UTM-метки к ссылке на приложение (перед #, существующие параметры сохраняются)."""
+    if not url:
+        return url
+    base, _, frag = url.partition("#")
+    q = f"utm_source={source}&utm_medium={medium}" + (f"&utm_campaign={campaign}" if campaign else "")
+    base = base + ("&" if "?" in base else "?") + q
+    return base + ("#" + frag if frag else "")
+
+
 def webapp_markup() -> dict | None:
     url = tg_webapp_url()
     if not url:
         return None
-    return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "web_app": {"url": url}}]]}
+    return {"inline_keyboard": [[{"text": "📊 Открыть приложение", "web_app": {"url": with_utm(url, "telegram", "bot_button", "digest")}}]]}
 
 
 _BOT_USERNAME: list = []
@@ -977,7 +989,7 @@ def setup_menu_button() -> None:
     if not url:
         return
     try:
-        tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Рынки", "web_app": {"url": url}})
+        tg("setChatMenuButton", menu_button={"type": "web_app", "text": "Рынки", "web_app": {"url": with_utm(url, "telegram", "bot_menu")}})
     except Exception as e:  # noqa: BLE001
         print(f"[app] кнопка меню не установлена: {e}", file=sys.stderr)
 
@@ -1071,12 +1083,40 @@ def window_start(now: datetime) -> datetime:
     return start.astimezone(timezone.utc)
 
 
+def announce(done: list, dry: bool = False) -> list:
+    """Разовые объявления из announcements/*.json: пост в Telegram (TELEGRAM_CHAT_ID) и пуш всем подписчикам.
+    Отправленные id запоминаются в data/app.json (поле announced), повторный запуск ничего не дублирует."""
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "announcements")
+    done = list(done)
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as f:
+            a = json.load(f)
+        aid = a.get("id") or name
+        if aid in done:
+            print(f"[announce] {aid}: уже отправлено", file=sys.stderr)
+            continue
+        if dry:
+            print(a.get("telegram", ""))
+            continue
+        if a.get("telegram"):
+            send(a["telegram"])
+        p = a.get("push") or {}
+        if p.get("title"):
+            send_push(p["title"], p.get("body") or {}, a.get("path") or "", re.sub(r"[^a-z0-9_]+", "_", aid.lower()))
+        done.append(aid)
+        print(f"[announce] {aid}: отправлено", file=sys.stderr)
+    return done
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="напечатать дайджест, ничего не отправлять")
     ap.add_argument("--get-chat-id", action="store_true")
-    ap.add_argument("--mode", choices=["digest", "data"], default="digest",
-                    help="digest — новости + рассылка; data — только котировки/индексы для приложения")
+    ap.add_argument("--mode", choices=["digest", "data", "announce"], default="digest",
+                    help="digest — новости + рассылка; data — только котировки/индексы для приложения; "
+                         "announce — как data плюс разовое объявление из announcements/ в Telegram и пушем")
     ap.add_argument("--export", metavar="DIR", help="собрать мини-приложение с данными в папку DIR")
     args = ap.parse_args()
 
@@ -1090,9 +1130,13 @@ def main() -> None:
     cal = econ_calendar(now)
     from sentiment import LAST_SENTIMENT
 
-    if args.mode == "data":
+    if args.mode in ("data", "announce"):
         payload = {"markets": LAST.get("markets", []), "sentiment": LAST_SENTIMENT,
                    "calendar": calendar_with_results(now), **previous_news(), **social_sections(now)}
+        announced = list(previous_app().get("announced") or [])
+        if args.mode == "announce":
+            announced = announce(announced, dry=args.dry_run)
+        payload["announced"] = announced
         if args.export:
             export_site(args.export, now, payload)
         return
@@ -1118,7 +1162,8 @@ def main() -> None:
             "news": news_export(chosen, ai, LAST.get("translations")), "mood": (ai or {}).get("mood", ""),
             "mood_i18n": (ai or {}).get("mood_i18n") or {},
             **social_sections(now, news),
-            "news_updated": now.isoformat(), "news_since": since.isoformat()})
+            "news_updated": now.isoformat(), "news_since": since.isoformat(),
+            "announced": list(previous_app().get("announced") or [])})
 
     if args.dry_run:
         print(text)

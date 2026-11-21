@@ -1,0 +1,15 @@
+{
+  "id": "candel-launch-2026-11",
+  "telegram": "<b>McQCryptoNews теперь CANDEL</b>\n\nМы полностью переработали приложение: новое имя, новый дизайн и новый адрес — <a href=\"https://candel.pages.dev/?utm_source=telegram&amp;utm_medium=channel&amp;utm_campaign=candel_launch\">candel.pages.dev</a>\n\n<b>Что нового</b>\n• Строгий дизайн в духе профессиональных терминалов и удобная версия для компьютера с меню слева\n• Календарь событий с итогами: факт против прогноза, решение по ставке и реакция рынка за первый час\n• Pro Chart: объём 9 бирж в одном графике и управление как в TradingView. Закрепи свою позицию — вход, TP и SL — и следи за прибылью или убытком в реальном времени\n• Торговый журнал: подключи биржу ключом только для чтения — 26 виджетов, у каждого свой период, размер и описание расчёта\n• Своё фото в профиле\n• Всё бесплатно\n\nСтарый адрес сам перенаправит на новый. Если приложение установлено на телефон или компьютер — удали его и установи заново с <a href=\"https://candel.pages.dev/?utm_source=telegram&amp;utm_medium=channel&amp;utm_campaign=candel_launch\">candel.pages.dev</a>, чтобы снова получать уведомления.",
+  "push": {
+    "title": {
+      "ru": "McQCryptoNews теперь CANDEL",
+      "en": "McQCryptoNews is now CANDEL"
+    },
+    "body": {
+      "ru": "Новый дизайн, календарь с итогами, Pro Chart и торговый журнал. Открой обновлённое приложение.",
+      "en": "New design, calendar with outcomes, Pro Chart and a trading journal. Open the updated app."
+    }
+  },
+  "path": ""
+}

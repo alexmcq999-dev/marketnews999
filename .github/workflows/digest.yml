@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "digest — рассылка в Telegram + приложение; data — только данные приложения"
+        description: "digest — рассылка в Telegram + приложение; data — только данные приложения; announce — данные + разовое объявление (announcements/)"
         type: choice
-        options: [digest, data]
+        options: [digest, data, announce]
         default: digest
 
 permissions:
@@ -102,6 +102,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
           TG_BOT_ID: ${{ vars.TG_BOT_ID || secrets.TG_BOT_ID }}
           PREMIUM_MODE: ${{ vars.PREMIUM_MODE || secrets.PREMIUM_MODE }}
+          YM_COUNTER_ID: ${{ vars.YM_COUNTER_ID }}
         run: |
           # подсказка в логе: какие публичные настройки приложения заданы (значения не печатаются)
           for v in SUPABASE_URL SUPABASE_ANON_KEY TG_BOT_ID ONESIGNAL_APP_ID; do
